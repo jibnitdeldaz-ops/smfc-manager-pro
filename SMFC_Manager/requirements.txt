@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+st-gsheets-connection
+mplsoccer
+matplotlib

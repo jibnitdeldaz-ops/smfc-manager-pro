@@ -1,0 +1,12 @@
+[project]
+name = "myapp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mplsoccer>=1.6.1",
+    "pandas>=2.3.3",
+    "st-gsheets-connection>=0.1.0",
+    "streamlit>=1.53.1",
+]
