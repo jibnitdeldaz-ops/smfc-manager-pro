@@ -197,8 +197,15 @@ def get_img_as_base64(file):
 
 # --- 📌 HEADER SECTION (HTML FLEXBOX) ---
 # This ensures Logo and Text are ALWAYS on the same line, even on mobile
+current_dir = os.path.dirname(os.path.abspath(__file__))
+logo_path = os.path.join(current_dir, "logo.png")
+
 img_html = ""
-if os.path.exists("logo.png"):
+
+if os.path.exists(logo_path):
+    img_b64 = get_img_as_base64(logo_path)
+    img_html = f'<img src="data:image/png;base64,{img_b64}" class="club-logo-img">'
+elif os.path.exists("logo.png"): # Fallback for local testing
     img_b64 = get_img_as_base64("logo.png")
     img_html = f'<img src="data:image/png;base64,{img_b64}" class="club-logo-img">'
 else:
