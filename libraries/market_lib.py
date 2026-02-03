@@ -213,7 +213,7 @@ def run_dip_hunter():
     # --- 🖥️ HEADER ---
     c_title, c_time = st.columns([2, 1])
     with c_title:
-        st.markdown("<h1 style='color:#102a43; font-weight:800; font-size: 32px; margin:0;'>📉 ETF Dip Hunter</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='color:#102a43; font-weight:800; font-size: 42px; margin:0;'>📉 ETF DIP HUNTER</h1>", unsafe_allow_html=True)
     with c_time:
         st.markdown(f"<div style='text-align: right; color: #627d98; font-weight:600; padding-top:10px;'>{datetime.now().strftime('%H:%M')}</div>", unsafe_allow_html=True)
 
