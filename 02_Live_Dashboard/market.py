@@ -1,7 +1,10 @@
 import streamlit as st
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from libraries.market_lib import run_dip_hunter
 
-# The config stays here for the legacy link
 st.set_page_config(page_title="Dip Hunter", layout="wide", page_icon="📉")
 
 if __name__ == "__main__":
