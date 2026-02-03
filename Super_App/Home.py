@@ -114,7 +114,7 @@ with col1:
     st.markdown("### ⚽ SMFC MANAGER PRO")
     st.markdown("The ultimate squad balancer. Create fair teams, manage guest players, and generate match summaries instantly.")
     st.write("")
-    if st.button("🚀 LAUNCH TEAM MAKER", key="btn_football", type="primary"):
+    if st.button("LAUNCH", key="btn_football", type="primary"):
         st.switch_page("pages/1_⚽_Team_Maker.py")
 
 with col2:
@@ -122,10 +122,10 @@ with col2:
     # Make sure 'dip_hunter.png' is inside the 'images' folder!
     st.image("images/dip_hunter.png")
     
-    st.markdown("### 📉 Dip Hunter")
+    st.markdown("### 📉 ETF DIP HUNTER")
     st.markdown("Live market scanner. Identify falling knives and buy opportunities in ETFs and Stocks with real-time visualization.")
     st.write("")
-    if st.button("🚀 LAUNCH DIP HUNTER", key="btn_market", type="primary"):
+    if st.button("LAUNCH", key="btn_market", type="primary"):
         st.switch_page("pages/2_📉_Dip_Hunter.py")
 
 # --- 📱 MOBILE FOOTER ---

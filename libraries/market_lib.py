@@ -6,7 +6,7 @@ from datetime import datetime
 
 # --- 📋 ASSETS CONFIGURATION ---
 ASSETS = {
-    "🟡 COMMODITIES": { "Gold Bees": "GOLDBEES.NS", "Silver Bees": "SILVERBEES.NS" },
+    "🟡 COMMODITIES ETF ": { "Gold Bees": "GOLDBEES.NS", "Silver Bees": "SILVERBEES.NS" },
     "🇺🇸 US ETFs (INR)": { "Motilal Nasdaq 100": "MON100.NS", "Mirae S&P 500": "MASPTOP50.NS", "Mirae Fang+": "MAFANG.NS", "Motilal Nasdaq Q50": "MONQ50.NS" },
     "🇨🇳 CHINESE ETFs": { "Hang Seng Bees": "HNGSNGBEES.NS", "Mirae Hang Seng Tech": "MAHKTECH.NS" },
     "🇮🇳 INDIAN ETFs": { "CPSE ETF": "CPSEETF.NS", "Groww Power": "GROWWPOWER.NS", "Groww Rail": "GROWWRAIL.NS", "Alpha Low Vol 30": "ALPL30IETF.NS", "Smallcap 250": "HDFCSML250.NS", "Momentum 30": "MOMOMENTUM.NS", "Defense ETF": "MODEFENCE.NS", "Realty ETF": "MOREALTY.NS", "Auto Bees": "AUTOBEES.NS", "Pharma Bees": "PHARMABEES.NS", "Bank Bees": "BANKBEES.NS", "Junior Bees": "JUNIORBEES.NS", "IT Bees": "ITBEES.NS", "PSU Bank Bees": "PSUBNKBEES.NS" },
@@ -213,7 +213,7 @@ def run_dip_hunter():
     # --- 🖥️ HEADER ---
     c_title, c_time = st.columns([2, 1])
     with c_title:
-        st.markdown("<h1 style='color:#102a43; font-weight:800; font-size: 32px; margin:0;'>📉 Dip Hunter</h1>", unsafe_allow_html=True)
+        st.markdown("<h1 style='color:#102a43; font-weight:800; font-size: 32px; margin:0;'>📉 ETF Dip Hunter</h1>", unsafe_allow_html=True)
     with c_time:
         st.markdown(f"<div style='text-align: right; color: #627d98; font-weight:600; padding-top:10px;'>{datetime.now().strftime('%H:%M')}</div>", unsafe_allow_html=True)
 
