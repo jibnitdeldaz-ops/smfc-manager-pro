@@ -27,9 +27,11 @@
           # 2. Installs requirements from SMFC_Manager folder
           # 3. Runs app from SMFC_Manager folder
           command = [
-            "sh" "-c" 
-            "python3 -m venv venv && source venv/bin/activate && pip install -r SMFC_Manager/requirements.txt && streamlit run SMFC_Manager/app.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false"
-          ];
+            #"sh" "-c" 
+            #"python3 -m venv venv && source venv/bin/activate && pip install -r SMFC_Manager/requirements.txt && streamlit run SMFC_Manager/app.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false"
+           "/bin/bash" "-c"
+            "source 02_Live_Dashboard/venv/bin/activate && pip install -r 02_Live_Dashboard/requirements.txt && streamlit run 02_Live_Dashboard/market.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false"
+           ];
           manager = "web";
         };
       };
