@@ -41,15 +41,19 @@ st.markdown("""
     }
 
     /* 4. APP CARDS (CONTAINERS) */
-    div.stContainer {
+    div[data-testid="column"] {
+        background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 15px;
         padding: 20px;
-        background: rgba(255,255,255,0.03);
         transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+    div[data-testid="column"]:hover {
+         border-color: rgba(0, 201, 255, 0.5);
+         box-shadow: 0 0 20px rgba(0, 201, 255, 0.2);
+    }
     
-    /* 5. BUTTON STYLING */
+    /* 5. BUTTON STYLING (FIXED VISIBILITY) */
     div.stButton > button {
         width: 100%;
         height: 55px;
@@ -57,21 +61,19 @@ st.markdown("""
         font-size: 18px;
         font-weight: 800;
         text-transform: uppercase;
-        border: none;
+        border: none !important;
+        color: white !important; /* Force white text */
         transition: all 0.3s;
     }
     
-    /* Football Button Color */
-    button[key="btn_football"] {
-        background: linear-gradient(90deg, #FF512F 0%, #DD2476 100%);
-        color: white !important;
+    /* Specific Gradients using !important to override defaults */
+    div[data-testid="stButton"] > button[key="btn_football"] {
+        background: linear-gradient(90deg, #FF512F 0%, #DD2476 100%) !important;
         box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
     }
 
-    /* Market Button Color */
-    button[key="btn_market"] {
-        background: linear-gradient(90deg, #1FA2FF 0%, #12D8FA 100%);
-        color: white !important;
+    div[data-testid="stButton"] > button[key="btn_market"] {
+        background: linear-gradient(90deg, #1FA2FF 0%, #12D8FA 100%) !important;
         box-shadow: 0 4px 15px rgba(31, 162, 255, 0.4);
     }
     
@@ -79,6 +81,12 @@ st.markdown("""
     div.stButton > button:hover {
         transform: translateY(-3px);
         opacity: 0.9;
+    }
+    
+    /* Fix Image centering inside columns */
+    div[data-testid="stImage"] {
+        display: flex;
+        justify-content: center;
     }
 
 </style>
@@ -89,28 +97,33 @@ st.markdown('<div class="glow-title">JIBINS AI LAB</div>', unsafe_allow_html=Tru
 st.markdown('<div class="subtitle">Next-Gen Tools for Sports & Finance</div>', unsafe_allow_html=True)
 
 # --- 🗂️ APP GRID ---
-col1, col2 = st.columns(2, gap="large")
+# Used gap="medium" to bring them slightly closer if the images are smaller
+col1, col2 = st.columns(2, gap="medium")
 
 with col1:
-    st.image("https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
+    # Fixed width of 500px instead of container width
+    st.image("https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=1000&auto=format&fit=crop", width=500)
     st.markdown("### ⚽ SMFC Team Maker")
     st.markdown("The ultimate squad balancer. Create fair teams, manage guest players, and generate match summaries instantly.")
     st.write("")
-    if st.button("🚀 LAUNCH TEAM MAKER", key="btn_football"):
+    # Added type="primary" to help with styling priority
+    if st.button("🚀 LAUNCH TEAM MAKER", key="btn_football", type="primary"):
         st.switch_page("pages/1_⚽_Team_Maker.py")
 
 with col2:
-    st.image("https://images.unsplash.com/photo-1611974765270-ca1258634369?q=80&w=1000&auto=format&fit=crop", use_container_width=True)
+    # New, more reliable image URL, also fixed width
+    st.image("https://images.unsplash.com/photo-1642543492481-44e81e3914a7?q=80&w=1000&auto=format&fit=crop", width=500)
     st.markdown("### 📉 Dip Hunter")
     st.markdown("Live market scanner. Identify falling knives and buy opportunities in ETFs and Stocks with real-time visualization.")
     st.write("")
-    if st.button("🚀 LAUNCH DIP HUNTER", key="btn_market"):
+    # Added type="primary" to help with styling priority
+    if st.button("🚀 LAUNCH DIP HUNTER", key="btn_market", type="primary"):
         st.switch_page("pages/2_📉_Dip_Hunter.py")
 
 # --- 📱 MOBILE FOOTER ---
 st.write("---")
 st.markdown("""
 <div style="text-align: center; color: #555; font-size: 12px;">
-    SYSTEM ONLINE • V 2.0 • JIBIN ENGINEERING
+    SYSTEM ONLINE • V 2.1 • JIBIN ENGINEERING
 </div>
 """, unsafe_allow_html=True)
