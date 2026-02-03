@@ -10,7 +10,6 @@ ASSETS = {
     "🇺🇸 US ETFs (INR)": { "Motilal Nasdaq 100": "MON100.NS", "Mirae S&P 500": "MASPTOP50.NS", "Mirae Fang+": "MAFANG.NS", "Motilal Nasdaq Q50": "MONQ50.NS" },
     "🇨🇳 CHINESE ETFs": { "Hang Seng Bees": "HNGSNGBEES.NS", "Mirae Hang Seng Tech": "MAHKTECH.NS" },
     "🇮🇳 INDIAN ETFs": { "CPSE ETF": "CPSEETF.NS", "Groww Power": "GROWWPOWER.NS", "Groww Rail": "GROWWRAIL.NS", "Alpha Low Vol 30": "ALPL30IETF.NS", "Smallcap 250": "HDFCSML250.NS", "Momentum 30": "MOMOMENTUM.NS", "Defense ETF": "MODEFENCE.NS", "Realty ETF": "MOREALTY.NS", "Auto Bees": "AUTOBEES.NS", "Pharma Bees": "PHARMABEES.NS", "Bank Bees": "BANKBEES.NS", "Junior Bees": "JUNIORBEES.NS", "IT Bees": "ITBEES.NS", "PSU Bank Bees": "PSUBNKBEES.NS" },
-    "💵 US STOCKS (USD)": { "Google": "GOOGL", "MaxLinear": "MXL" }
 }
 
 WINDOW_MAP = {'1D': 2, '2D': 3, '3D': 4, '4D': 5, '1W': 6, '2W': 11, '3W': 16, '4W': 23}
