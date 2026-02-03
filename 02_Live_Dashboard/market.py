@@ -1,69 +1,118 @@
 import streamlit as st
 import yfinance as yf
+import pandas as pd
 import plotly.graph_objects as go
-import time
 
-st.set_page_config(page_title="Market Tracker", layout="wide", page_icon="📈")
+# --- ⚙️ PAGE CONFIG ---
+st.set_page_config(page_title="My Portfolio Tracker", layout="wide", page_icon="📈")
 
-# --- 🛰️ SIDEBAR SETTINGS ---
-st.sidebar.header("⚙️ Dashboard Settings")
-st.sidebar.write("Select assets to track:")
-crypto_choice = st.sidebar.selectbox("Choose Crypto", ["BTC-USD", "ETH-USD", "SOL-USD", "DOGE-USD"])
-stock_choice = st.sidebar.selectbox("Choose Stock", ["AAPL", "TSLA", "GOOGL", "MSFT", "NVDA"])
+# --- 📋 ASSET LIST (The "Master List") ---
+# Dictionary structure: "Label Name": "Yahoo Ticker"
+ASSETS = {
+    "🟡 COMMODITIES": {
+        "Gold Bees": "GOLDBEES.NS",
+        "Silver Bees": "SILVERBEES.NS"
+    },
+    "🇺🇸 US ETFs (INR)": {
+        "Motilal Nasdaq 100": "MON100.NS",
+        "Mirae S&P 500 Top 50": "MASPTOP50.NS",
+        "Mirae Fang+": "MAFANG.NS",
+        "Motilal Nasdaq Q50": "MONQ50.NS"
+    },
+    "🇨🇳 CHINESE ETFs": {
+        "Hang Seng Bees": "HNGBEES.NS",
+        "Mirae Hang Seng Tech": "MAHKTECH.NS"
+    },
+    "🇮🇳 INDIAN ETFs": {
+        "CPSE ETF": "CPSEETF.NS",
+        "Groww Power": "GROWWPOWER.NS",
+        "Groww Rail": "GROWWRAIL.NS",
+        "Alpha Low Vol 30": "ALPL30IETF.NS",
+        "Metal Bees": "METALBEES.NS",
+        "Smallcap 250 (HDFC)": "HDFCSML250.NS", # Proxy for generic Smallcap
+        "Momentum 30": "MOMOMENTUM.NS",
+        "Defense ETF": "MODEFENCE.NS",
+        "Realty ETF": "MOREALTY.NS",
+        "Auto Bees": "AUTOBEES.NS",
+        "Pharma Bees": "PHARMABEES.NS",
+        "Bank Bees": "BANKBEES.NS",
+        "Junior Bees": "JUNIORBEES.NS",
+        "IT Bees": "ITBEES.NS",
+        "PSU Bank Bees": "PSUBNKBEES.NS"
+    },
+    "💵 US STOCKS (USD)": {
+        "Google (Alphabet)": "GOOGL",
+        "MaxLinear Tech": "MXL"
+    }
+}
 
-# --- 🛡️ SMART DATA ENGINE (Now with Caching!) ---
-# This decorator tells Streamlit: "Keep this data for 300 seconds (5 mins)"
-# It prevents us from getting banned by Yahoo for spamming requests.
-@st.cache_data(ttl=300) 
-def get_data(symbol):
-    ticker = yf.Ticker(symbol)
-    # 5d period gives us enough context, 15m interval is granular enough
-    df = ticker.history(period="5d", interval="15m")
-    return df
+# --- 🛡️ DATA ENGINE (Cached) ---
+@st.cache_data(ttl=300) # Cache for 5 minutes
+def get_live_data(ticker):
+    try:
+        stock = yf.Ticker(ticker)
+        # Get 5 days of history to calculate changes
+        df = stock.history(period="5d", interval="1d")
+        if df.empty:
+            return None
+        return df
+    except Exception:
+        return None
 
-# --- 🖥️ MAIN DASHBOARD ---
-st.title(f"🚀 {crypto_choice} vs {stock_choice}")
+# --- 🎨 UI LAYOUT ---
+st.title("📈 Strategic Portfolio Tracker")
+st.markdown(f"**Live Tracking for:** India (NSE) • US (Nasdaq) • China (Hang Seng)")
+st.divider()
 
-# Try/Except block to handle the error gracefully if it still happens
-try:
-    with st.spinner('Fetching live market data...'):
-        crypto_data = get_data(crypto_choice)
-        stock_data = get_data(stock_choice)
+# --- 🔄 MAIN LOOP ---
+# We loop through each category in your dictionary
+for category, tokens in ASSETS.items():
+    st.subheader(f"{category}")
+    
+    # Create columns dynamically (3 cards per row)
+    cols = st.columns(4)
+    col_index = 0
 
-    # Row 1: The Big Numbers
-    col1, col2 = st.columns(2)
+    for name, ticker in tokens.items():
+        # Fetch Data
+        df = get_live_data(ticker)
+        
+        # Determine current column
+        with cols[col_index % 4]:
+            if df is not None:
+                # Calculate Metrics
+                current_price = df['Close'].iloc[-1]
+                prev_close = df['Close'].iloc[-2]
+                change = current_price - prev_close
+                pct_change = (change / prev_close) * 100
+                
+                # Currency Symbol Logic
+                currency = "$" if "USD" in category else "₹"
+                
+                # Color Logic
+                color = "normal" 
+                if pct_change > 0: color = "normal" # Streamlit handles green auto via delta
+                
+                # Display Card
+                st.metric(
+                    label=name,
+                    value=f"{currency}{current_price:,.2f}",
+                    delta=f"{change:,.2f} ({pct_change:.2f}%)"
+                )
+                
+                # Mini Chart (Line)
+                st.line_chart(df['Close'], height=50)
+                
+            else:
+                st.warning(f"{name}: No Data")
+        
+        col_index += 1
+    
+    st.divider()
 
-    with col1:
-        if not crypto_data.empty:
-            curr_c = crypto_data['Close'].iloc[-1]
-            delta_c = curr_c - crypto_data['Close'].iloc[0]
-            st.metric(label=f"💰 {crypto_choice}", value=f"${curr_c:,.2f}", delta=f"{delta_c:,.2f}")
-        else:
-            st.error("No Data")
+# --- ℹ️ FOOTER ---
+if st.button("🔄 Refresh Prices"):
+    st.cache_data.clear()
+    st.rerun()
 
-    with col2:
-        if not stock_data.empty:
-            curr_s = stock_data['Close'].iloc[-1]
-            delta_s = curr_s - stock_data['Close'].iloc[0]
-            st.metric(label=f"🏢 {stock_choice}", value=f"${curr_s:,.2f}", delta=f"{delta_s:,.2f}")
-        else:
-            st.error("No Data")
-
-    # Row 2: Charts
-    st.subheader("Market Trends (Last 5 Days)")
-    tab1, tab2 = st.tabs(["📈 Crypto Chart", "📉 Stock Chart"])
-
-    with tab1:
-        if not crypto_data.empty:
-            st.line_chart(crypto_data['Close'], color="#00FF00")
-
-    with tab2:
-        if not stock_data.empty:
-            st.line_chart(stock_data['Close'], color="#FF4B4B")
-
-    st.caption("Data provided by Yahoo Finance. Updates every 5 minutes to prevent rate limits.")
-
-except Exception as e:
-    st.error(f"⚠️ Yahoo Finance is currently limiting traffic. Please wait 1 minute and refresh. (Error: {e})")
-
-st.sidebar.success("System Operational")
+st.caption("Data Source: Yahoo Finance | Updates every 5 mins")
