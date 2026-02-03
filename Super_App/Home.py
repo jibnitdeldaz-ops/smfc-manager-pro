@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit.components.v1 import html
 
 # --- ⚙️ PAGE CONFIGURATION ---
 st.set_page_config(
@@ -41,19 +40,37 @@ st.markdown("""
     }
 
     /* 4. APP CARDS (CONTAINERS) */
+    /* Make columns a flex container to align buttons at the bottom */
     div[data-testid="column"] {
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.1);
         border-radius: 15px;
         padding: 20px;
         transition: transform 0.3s ease, box-shadow 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        height: 100%; /* Ensure columns are full height */
     }
     div[data-testid="column"]:hover {
          border-color: rgba(0, 201, 255, 0.5);
          box-shadow: 0 0 20px rgba(0, 201, 255, 0.2);
     }
+
+    /* 5. UNIFORM IMAGE SIZING */
+    div[data-testid="stImage"] img {
+        height: 300px !important; /* Fixed height for all images */
+        width: 100%;
+        object-fit: cover; /* Crop image to fit without distorting */
+        border-radius: 10px;
+    }
+
+    /* 6. PUSH BUTTONS TO BOTTOM */
+    /* This targets the container that holds the button */
+    div[data-testid="column"] > div:last-child {
+        margin-top: auto;
+    }
     
-    /* 5. BUTTON STYLING (FIXED VISIBILITY) */
+    /* 7. BUTTON STYLING */
     div.stButton > button {
         width: 100%;
         height: 55px;
@@ -62,11 +79,11 @@ st.markdown("""
         font-weight: 800;
         text-transform: uppercase;
         border: none !important;
-        color: white !important; /* Force white text */
+        color: white !important;
         transition: all 0.3s;
     }
     
-    /* Specific Gradients using !important to override defaults */
+    /* Specific Gradients */
     div[data-testid="stButton"] > button[key="btn_football"] {
         background: linear-gradient(90deg, #FF512F 0%, #DD2476 100%) !important;
         box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
@@ -82,12 +99,6 @@ st.markdown("""
         transform: translateY(-3px);
         opacity: 0.9;
     }
-    
-    /* Fix Image centering inside columns */
-    div[data-testid="stImage"] {
-        display: flex;
-        justify-content: center;
-    }
 
 </style>
 """, unsafe_allow_html=True)
@@ -97,26 +108,23 @@ st.markdown('<div class="glow-title">JIBINS AI LAB</div>', unsafe_allow_html=Tru
 st.markdown('<div class="subtitle">Next-Gen Tools for Sports & Finance</div>', unsafe_allow_html=True)
 
 # --- 🗂️ APP GRID ---
-# Used gap="medium" to bring them slightly closer if the images are smaller
-col1, col2 = st.columns(2, gap="medium")
+col1, col2 = st.columns(2, gap="large")
 
 with col1:
-    # Fixed width of 500px instead of container width
-    st.image("https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=1000&auto=format&fit=crop", width=500)
+    # Football Image
+    st.image("https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=1000&auto=format&fit=crop")
     st.markdown("### ⚽ SMFC Team Maker")
     st.markdown("The ultimate squad balancer. Create fair teams, manage guest players, and generate match summaries instantly.")
     st.write("")
-    # Added type="primary" to help with styling priority
     if st.button("🚀 LAUNCH TEAM MAKER", key="btn_football", type="primary"):
         st.switch_page("pages/1_⚽_Team_Maker.py")
 
 with col2:
-    # New, more reliable image URL, also fixed width
-    st.image("https://images.unsplash.com/photo-1642543492481-44e81e3914a7?q=80&w=1000&auto=format&fit=crop", width=500)
+    # Your New Dip Hunter Image
+    st.image("https://i.imgur.com/J8x686e.jpeg")
     st.markdown("### 📉 Dip Hunter")
     st.markdown("Live market scanner. Identify falling knives and buy opportunities in ETFs and Stocks with real-time visualization.")
     st.write("")
-    # Added type="primary" to help with styling priority
     if st.button("🚀 LAUNCH DIP HUNTER", key="btn_market", type="primary"):
         st.switch_page("pages/2_📉_Dip_Hunter.py")
 
@@ -124,6 +132,6 @@ with col2:
 st.write("---")
 st.markdown("""
 <div style="text-align: center; color: #555; font-size: 12px;">
-    SYSTEM ONLINE • V 2.1 • JIBIN ENGINEERING
+    SYSTEM ONLINE • V 2.2 • JIBIN ENGINEERING
 </div>
 """, unsafe_allow_html=True)
