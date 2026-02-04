@@ -109,7 +109,7 @@ st.caption("Paste the WhatsApp summary to auto-fill the database.")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 try:
-    history_df = conn.read(worksheet="1", ttl=0)
+    history_df = conn.read(worksheet=1, ttl=0)
 except:
     st.error("⚠️ 'Log' tab not found in Google Sheets.")
     st.stop()
@@ -202,7 +202,7 @@ with col_preview:
                 st.error("⚠️ DUPLICATE! This match seems to be already saved.")
             else:
                 updated_df = pd.concat([history_df, new_row], ignore_index=True)
-                conn.update(worksheet="1", data=updated_df)
+                conn.update(worksheet=1, data=updated_df)
                 st.success("✅ Match Saved Successfully!")
                 st.rerun()
 
