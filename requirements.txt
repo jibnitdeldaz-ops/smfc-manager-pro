@@ -5,4 +5,4 @@ yfinance
 plotly
 matplotlib
 mplsoccer
-st-gsheets-connection
+st-gsheets-connection>=0.0.4
