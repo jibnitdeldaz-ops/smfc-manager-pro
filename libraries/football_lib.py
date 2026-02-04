@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-# from streamlit_gsheets import GSheetsConnection # Not used anymore
+from streamlit_gsheets import GSheetsConnection
 from mplsoccer import Pitch
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
@@ -39,10 +39,9 @@ def toggle_selection(player_name):
 
 def load_data():
     try:
-        # Use the ID directly to construct a robust CSV export URL
-        sheet_id = "1-ShO5kfDdPH4FxSX-S9tyUNeyLAIOHi44NePaKff7Lw"
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
-        df = pd.read_csv(url)
+        # Reverting to GSheetsConnection for Write Access (Service Account)
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(worksheet="Sheet1", ttl=0) # ttl=0 for fresh data
     except Exception as e:
         # Debugging: Show the error!
         st.error(f"DATA LOAD FATAL ERROR: {e}")
