@@ -157,6 +157,10 @@ def run_football_app():
             border: 1px solid rgba(255,255,255,0.2) !important;
         }
 
+        /* --- FIX: METRICS READABILITY (GLOWING WHITE) --- */
+        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+
         /* 1. BADGES */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
@@ -176,11 +180,11 @@ def run_football_app():
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
 
-        /* 5. SPOTLIGHT & LEADERBOARD (UPDATED FOR GLOWING WHITE) */
+        /* 5. SPOTLIGHT & LEADERBOARD (GLOWING WHITE & BIGGER) */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
-        .sp-value { font-size: 28px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
-        .sp-title { font-size: 14px; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 5px rgba(255,255,255,0.3); margin-bottom: 5px; }
-        .sp-name { color: #FF5722; font-weight: bold; }
+        .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
+        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
+        .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
@@ -397,7 +401,7 @@ def run_football_app():
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
 
-                # UPDATED HTML FOR GLOWING WHITE TITLES & VALUES
+                # UPDATED HTML FOR GLOWING WHITE TITLES, VALUES & NAMES
                 sp1, sp2, sp3 = st.columns(3)
                 with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
                 with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
