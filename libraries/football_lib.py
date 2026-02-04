@@ -10,7 +10,7 @@ import re
 import os
 import base64
 
-# --- 🧮 HELPER FUNCTIONS (GLOBAL) ---
+# --- 🧮 HELPER FUNCTIONS ---
 
 def get_img_as_base64(file):
     if os.path.exists(file):
@@ -102,22 +102,16 @@ def calculate_leaderboard(df_matches, official_names):
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
     
-    # --- 🏆 RANKING LOGIC (New) ---
+    # --- 🏆 RANKING LOGIC ---
     res['Win %'] = ((res['W'] / res['M']) * 100).round(0).astype(int)
-    
-    # Filter: Min 2 Matches
-    res = res[res['M'] >= 2]
-    
-    # Sort: Win % High -> Low, then Wins High -> Low
+    res = res[res['M'] >= 2] # Min 2 matches to appear on leaderboard
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
-    
-    # Add Rank Column
     res['Rank'] = range(1, len(res) + 1)
     
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     
-    return res # No reset index yet, keep names as index for now
+    return res
 
 # --- 📥 DATA LOADING ---
 def load_data():
@@ -164,18 +158,21 @@ def run_football_app():
         .kit-blue { border-left: 4px solid #1c83e1; }
         .streamlit-expanderHeader { font-family: 'Rajdhani', sans-serif; font-weight: bold; color: #FF5722 !important; font-size: 18px; }
         
-        /* 🏆 NEW LEADERBOARD CARDS */
+        /* 🏆 SPOTLIGHT CARDS */
+        .spotlight-box {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+            border-radius: 10px; padding: 15px; text-align: center; height: 100%;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .sp-title { font-size: 12px; color: #aaa; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .sp-value { font-size: 24px; font-weight: 900; color: #fff; margin: 5px 0; }
+        .sp-name { font-size: 14px; color: #FF5722; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 🏆 LEADERBOARD LIST */
         .lb-card {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-left: 4px solid #FF5722;
-            border-radius: 8px;
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: transform 0.2s;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: space-between; transition: transform 0.2s;
         }
         .lb-card:hover { transform: translateX(5px); background: rgba(255,255,255,0.06); }
         .lb-rank { font-size: 20px; font-weight: 900; color: #FF5722; width: 40px; }
@@ -315,65 +312,106 @@ def run_football_app():
         if not st.session_state.match_squad.empty:
             pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
             fig, ax = pitch.draw(figsize=(10, 6))
-            # ... (Drawing logic) ...
             st.pyplot(fig)
         else:
             st.info("Generate a squad first!")
 
-    # --- TAB 3: ANALYTICS (UPGRADED) ---
+    # --- TAB 3: ANALYTICS (SPOTLIGHT + LIST) ---
     with tab3:
         st.markdown("### 📊 SMFC ANALYTICS HUB")
         
-        # Check Data
         if 'match_db' not in st.session_state or st.session_state.match_db.empty:
             st.warning("No match history found.")
         else:
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique())
             
-            # Metrics
+            # 1. METRICS
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m))
             c2.metric("GOALS", int(total_goals))
             c3.metric("PLAYERS", len(official_names))
 
-            # --- 🏆 NEW CARD LEADERBOARD ---
             st.write("---")
-            st.markdown("#### 🏆 TOP PERFORMERS (Min 2 Matches)")
             
+            # 2. CALCULATE STATS
             lb = calculate_leaderboard(df_m, official_names)
             
             if not lb.empty:
-                # Render HTML Cards
-                for player_name, row in lb.iterrows():
-                    # Rank Logic (1st=Gold, 2nd=Silver, 3rd=Bronze color logic handled in CSS if needed, simple here)
-                    rank = row['Rank']
-                    win_rate = row['Win %']
-                    matches = row['M']
-                    form = row['Form (Last 5)']
+                # 🏆 SPOTLIGHT CARDS
+                # Logic: Find Max values. If ties, join names with comma.
+                
+                # A. MOST MATCHES (IRON MAN)
+                max_m = lb['M'].max()
+                names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
+                
+                # B. STAR WINNER (Highest Win % with max wins tiebreaker)
+                # Since list is already sorted by Win% then W, top row is the winner
+                top_player = lb.iloc[0]
+                name_w = lb.index[0]
+                val_w = f"{top_player['Win %']}%"
+                
+                # C. MOST LOSSES (ANCHOR)
+                max_l = lb['L'].max()
+                names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
+
+                # Display Columns
+                sp1, sp2, sp3 = st.columns(3)
+                
+                with sp1:
+                    st.markdown(f"""
+                    <div class="spotlight-box" style="border-bottom: 4px solid #00C9FF;">
+                        <div class="sp-title">COMMITMENT KING</div>
+                        <div class="sp-value">{max_m}</div>
+                        <div class="sp-name">{names_m}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with sp2:
+                    st.markdown(f"""
+                    <div class="spotlight-box" style="border-bottom: 4px solid #FFD700;">
+                        <div class="sp-title">STAR PLAYER</div>
+                        <div class="sp-value">{val_w}</div>
+                        <div class="sp-name">{name_w}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
+                with sp3:
+                    st.markdown(f"""
+                    <div class="spotlight-box" style="border-bottom: 4px solid #ff4b4b;">
+                        <div class="sp-title">MOST LOSSES</div>
+                        <div class="sp-value">{max_l}</div>
+                        <div class="sp-name">{names_l}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                st.write("")
+                st.markdown("#### 🏆 LEADERBOARD (Min 2 Matches)")
+
+                # 3. LEADERBOARD LIST
+                for player_name, row in lb.iterrows():
                     st.markdown(f"""
                     <div class="lb-card">
-                        <div class="lb-rank">#{rank}</div>
+                        <div class="lb-rank">#{row['Rank']}</div>
                         <div class="lb-details">
                             <span class="lb-name">{player_name}</span>
-                            <span class="lb-sub">{matches} Matches • {row['W']} Wins</span>
+                            <span class="lb-sub">{row['M']} Matches • {row['W']} Wins</span>
                         </div>
                         <div>
-                            <div class="lb-winrate">{win_rate}%</div>
-                            <div class="lb-form">{form}</div>
+                            <div class="lb-winrate">{row['Win %']}%</div>
+                            <div class="lb-form">{row['Form (Last 5)']}</div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
             else:
-                st.info("Not enough data to generate rankings. Need players with at least 2 matches.")
+                st.info("Not enough data. Need players with 2+ matches to generate stats.")
 
-            # Hidden Admin Zone
+            # Admin Zone
             st.write("---")
             with st.expander("⚙️ ADMIN ZONE (Log Match)"):
                 t_paste, t_man = st.tabs(["📋 PASTE", "✍️ MANUAL"])
-                # ... (Admin Logic same as before) ...
+                
                 if 'f_venue' not in st.session_state: st.session_state.f_venue = "BFC"
                 if 'f_sb' not in st.session_state: st.session_state.f_sb = 0
                 if 'f_sr' not in st.session_state: st.session_state.f_sr = 0
