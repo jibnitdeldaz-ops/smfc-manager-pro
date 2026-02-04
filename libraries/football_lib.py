@@ -104,7 +104,7 @@ def calculate_leaderboard(df_matches, official_names):
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
 
-# --- 📥 DATA LOADING (ROBUST VERSION) ---
+# --- 📥 DATA LOADING (ROBUST) ---
 def load_data():
     conn = None
     try:
@@ -138,20 +138,36 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # CSS
+    # --- RESTORED CSS (THE VIBE) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); }
+        
+        /* 1. BADGES */
+        .badge-box { display: flex; gap: 5px; }
+        .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
+        .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
+        .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
+
+        /* 2. BUTTONS */
+        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
+        div.stButton > button:hover { transform: translateY(-2px); opacity: 0.9; }
+
+        /* 3. CONTAINERS */
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        
+        /* 4. PLAYER CARDS */
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; margin-bottom: 6px; display: flex; align-items: center; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
+        .card-name { font-size: 15px; font-weight: 700; color: white !important; }
+
+        /* 5. SPOTLIGHT & LEADERBOARD */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 24px; font-weight: 900; color: #fff; margin: 5px 0; }
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
-        .card-name { font-size: 15px; font-weight: 700; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -170,7 +186,8 @@ def run_football_app():
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
 
     # HEADER
-    st.markdown("<h1 style='text-align:center; color:#FF5722;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
+    
     if st.sidebar.button("🔄 Refresh Data"):
         st.session_state.pop('master_db', None)
         st.rerun()
@@ -181,11 +198,23 @@ def run_football_app():
     # TAB 1: LOBBY
     with tab1:
         smfc_n, guest_n, total_n = get_counts()
-        st.markdown(f"""<div class='section-box' style='text-align:center; font-size:20px; font-weight:bold; color:white;'>PLAYER POOL: <span style='color:#FF5722'>{total_n}</span></div>""", unsafe_allow_html=True)
+        
+        # --- 3 BADGES RESTORED ---
+        st.markdown(f"""
+        <div class="section-box">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div>
+                <div class="badge-box">
+                    <div class="badge-smfc">{smfc_n} SMFC</div>
+                    <div class="badge-guest">{guest_n} GUEST</div>
+                    <div class="badge-total">{total_n} TOTAL</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=100, label_visibility="collapsed")
-            if st.button("Select Players"):
+            if st.button("Select Players", key="btn_select"):
                 if 'Selected' in st.session_state.master_db.columns:
                     st.session_state.master_db['Selected'] = False
                     new_guests = []
@@ -203,22 +232,37 @@ def run_football_app():
                     st.rerun()
                 else: st.error("DB Offline")
 
-        st.text_input("Guests", key="guest_input_val")
+        # CHECKLIST TABS
+        pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
+        def render_checklist(df_s, t_n):
+            if df_s.empty or 'Name' not in df_s.columns: return
+            df_s = df_s.sort_values("Name")
+            cols = st.columns(3) 
+            for i, (idx, row) in enumerate(df_s.iterrows()):
+                cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}_{t_n}", on_change=toggle_selection, args=(row['Name'],))
         
-        # CHECKLIST
-        cols = st.columns(3)
-        if 'Name' in st.session_state.master_db.columns:
-            for i, (idx, row) in enumerate(st.session_state.master_db.sort_values("Name").iterrows()):
-                cols[i%3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}", on_change=toggle_selection, args=(row['Name'],))
+        with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
+        with pos_tabs[1]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'FWD'], "fwd")
+        with pos_tabs[2]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'MID'], "mid")
+        with pos_tabs[3]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'DEF'], "def")
+        
+        st.write("")
+        st.text_input("Guests (Comma separated)", key="guest_input_val")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- MATCH SETTINGS ---
-        with st.expander("⚙️ MATCH SETTINGS"):
+        # --- MATCH SETTINGS (TIME RESTORED) ---
+        with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
-            match_date = c1.date_input("Date")
+            match_date = c1.date_input("Match Date", datetime.today())
+            match_time = c1.time_input("Kickoff", datetime.now().time())
             venue_opt = c2.selectbox("Venue", ["BFC", "SportZ", "Other"])
-            venue = st.text_input("Venue Name") if venue_opt == "Other" else venue_opt
-            st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6"])
+            if venue_opt == "Other": venue = c2.text_input("Venue Name", "Ground")
+            else: venue = venue_opt
+            duration = c2.slider("Duration (Mins)", 30, 120, 90, 15)
+            st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"])
 
+        # GENERATE BUTTON (ORANGE RESTORED via CSS above)
+        st.write("")
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
                 active = st.session_state.master_db[st.session_state.master_db['Selected'] == True].copy()
@@ -234,41 +278,45 @@ def run_football_app():
 
         # --- PREVIEW & COPY ---
         if not st.session_state.match_squad.empty:
-            st.markdown('<div class="section-box"><div style="color:#FF5722; font-weight:bold;">LINEUPS</div>', unsafe_allow_html=True)
+            st.markdown('<div class="section-box"><div style="color:#FF5722; font-weight:bold; font-size:18px;">LINEUPS</div>', unsafe_allow_html=True)
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
             
             c1, c2 = st.columns(2)
             with c1: 
-                st.markdown("#### 🔴 RED")
+                st.markdown("<h4 style='color:#ff4b4b; text-align:center'>RED TEAM</h4>", unsafe_allow_html=True)
                 for _, p in reds.iterrows(): st.markdown(f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span></div>", unsafe_allow_html=True)
             with c2: 
-                st.markdown("#### 🔵 BLUE")
+                st.markdown("<h4 style='color:#1c83e1; text-align:center'>BLUE TEAM</h4>", unsafe_allow_html=True)
                 for _, p in blues.iterrows(): st.markdown(f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span></div>", unsafe_allow_html=True)
             
             # COPY BUTTON LOGIC
             r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
             b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
-            summary = f"Date: {match_date}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
+            summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
             
+            # HIDDEN TEXTAREA HACK FOR COPY
             components.html(
                 f"""
                 <textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea>
-                <button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:10px 0; border:none; border-radius:8px; width:100%; cursor:pointer;">📋 COPY TEAM LIST</button>
-                """, height=50
+                <button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>
+                """, height=70
             )
 
-            # PLAYER TRANSFER WINDOW
+            # PLAYER TRANSFER WINDOW (RESTORED STYLE)
             st.write("---")
-            st.markdown("### ↔️ TRANSFER WINDOW")
+            st.markdown("<h3 style='text-align:center; color:#FF5722;'>↔️ TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
             with col_tr_red:
-                s_red = st.selectbox("From Red", reds["Name"], key="sel_red")
+                st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
+                s_red = st.selectbox("Select Red", reds["Name"], key="sel_red", label_visibility="collapsed")
             with col_tr_blue:
-                s_blue = st.selectbox("From Blue", blues["Name"], key="sel_blue")
+                st.markdown(f"<div style='border:2px solid #1c83e1; border-radius:10px; padding:10px; text-align:center; color:#1c83e1; font-weight:bold;'>🔵 FROM BLUE</div>", unsafe_allow_html=True)
+                s_blue = st.selectbox("Select Blue", blues["Name"], key="sel_blue", label_visibility="collapsed")
             with col_btn:
                 st.write("")
-                if st.button("Swap"):
+                st.write("")
+                if st.button("↔️", key="swap_btn"):
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
@@ -282,7 +330,6 @@ def run_football_app():
             pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
             fig, ax = pitch.draw(figsize=(10, 6))
             
-            # Drawing Logic
             def draw_player(player, x, y, color):
                 pitch.scatter(x, y, s=500, c=color, edgecolors='white', ax=ax, zorder=2)
                 ax.text(x, y-4, player["Name"], color='black', ha='center', fontsize=9, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
@@ -290,7 +337,6 @@ def run_football_app():
             fmt = st.session_state.get('match_format', '9 vs 9')
             coords = formation_presets.get(fmt, formation_presets['9 vs 9'])
             
-            # REDS
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
             assigned_r = {"DEF":[], "MID":[], "FWD":[]}
             rem_r = []
@@ -303,7 +349,6 @@ def run_football_app():
                     x, y = coords[f"{role}_R"][i]
                     draw_player(p, x, y, '#ff4b4b')
 
-            # BLUES
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
             assigned_b = {"DEF":[], "MID":[], "FWD":[]}
             rem_b = []
@@ -325,6 +370,7 @@ def run_football_app():
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             
+            # Metrics
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
