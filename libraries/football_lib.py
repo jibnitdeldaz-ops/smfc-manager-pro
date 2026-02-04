@@ -176,9 +176,12 @@ def run_football_app():
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
 
-        /* 5. SPOTLIGHT & LEADERBOARD */
+        /* 5. SPOTLIGHT & LEADERBOARD (UPDATED FOR GLOWING WHITE) */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
-        .sp-value { font-size: 24px; font-weight: 900; color: #fff; margin: 5px 0; }
+        .sp-value { font-size: 28px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        .sp-title { font-size: 14px; font-weight: 800; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 5px rgba(255,255,255,0.3); margin-bottom: 5px; }
+        .sp-name { color: #FF5722; font-weight: bold; }
+
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
     </style>
@@ -377,7 +380,7 @@ def run_football_app():
             st.pyplot(fig)
         else: st.info("Generate Squad First")
 
-    # TAB 3: ANALYTICS
+    # TAB 3: ANALYTICS (GLOWING WHITE FIX)
     with tab3:
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
@@ -394,10 +397,11 @@ def run_football_app():
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
 
+                # UPDATED HTML FOR GLOWING WHITE TITLES & VALUES
                 sp1, sp2, sp3 = st.columns(3)
-                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div>COMMITMENT KING</div><div style='color:#FF5722'>{names_m}</div></div>", unsafe_allow_html=True)
-                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div>STAR PLAYER</div><div style='color:#FF5722'>{name_w}</div></div>", unsafe_allow_html=True)
-                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div>MOST LOSSES</div><div style='color:#FF5722'>{names_l}</div></div>", unsafe_allow_html=True)
+                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
+                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
+                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
                 
                 st.write("---")
                 for p, r in lb.iterrows():
