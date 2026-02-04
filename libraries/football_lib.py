@@ -38,15 +38,13 @@ def toggle_selection(player_name):
     current_val = st.session_state.master_db.at[idx, 'Selected']
     st.session_state.master_db.at[idx, 'Selected'] = not current_val
 
-# --- 🧠 ANALYTICS HELPERS (Merged from Analytics Lib) ---
+# --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
     data = {}
     try:
-        # Venue
         venue_match = re.search(r'🏟️\s*(.*)', text)
         data['venue'] = venue_match.group(1).strip() if venue_match else "BFC"
         
-        # Scores
         score_match = re.search(r'Score.*?:.*?(\d+)\s*[-v]\s*(\d+)', text, re.IGNORECASE)
         if score_match:
             val1, val2 = int(score_match.group(1)), int(score_match.group(2))
@@ -56,7 +54,6 @@ def parse_whatsapp_log(text):
             else:
                 data['s_blue'], data['s_red'] = val1, val2
 
-        # Players
         clean_text = text.replace('*', '')
         r_start = re.search(r'Red:', clean_text, re.IGNORECASE)
         b_start = re.search(r'Blue:', clean_text, re.IGNORECASE)
@@ -104,25 +101,34 @@ def calculate_leaderboard(df_matches, official_names):
 
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
+    
+    # --- 🏆 RANKING LOGIC (New) ---
     res['Win %'] = ((res['W'] / res['M']) * 100).round(0).astype(int)
+    
+    # Filter: Min 2 Matches
+    res = res[res['M'] >= 2]
+    
+    # Sort: Win % High -> Low, then Wins High -> Low
+    res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
+    
+    # Add Rank Column
+    res['Rank'] = range(1, len(res) + 1)
+    
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
-    return res.sort_values(by=['W', 'Win %'], ascending=False)
+    
+    return res # No reset index yet, keep names as index for now
 
-# --- 📥 DATA LOADING (Combined) ---
+# --- 📥 DATA LOADING ---
 def load_data():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # Load Players
         df = conn.read(worksheet="Sheet1", ttl=0)
         if 'Selected' not in df.columns: df['Selected'] = False
-        
-        # Load Match History (Safely)
         try:
             df_matches = conn.read(worksheet="Match_History", ttl=0)
         except:
             df_matches = pd.DataFrame()
-            
         return conn, df, df_matches
     except Exception as e:
         st.error(f"DATA ERROR: {e}")
@@ -157,6 +163,27 @@ def run_football_app():
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .streamlit-expanderHeader { font-family: 'Rajdhani', sans-serif; font-weight: bold; color: #FF5722 !important; font-size: 18px; }
+        
+        /* 🏆 NEW LEADERBOARD CARDS */
+        .lb-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-left: 4px solid #FF5722;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s;
+        }
+        .lb-card:hover { transform: translateX(5px); background: rgba(255,255,255,0.06); }
+        .lb-rank { font-size: 20px; font-weight: 900; color: #FF5722; width: 40px; }
+        .lb-details { flex-grow: 1; }
+        .lb-name { font-size: 18px; font-weight: 800; color: #fff; display: block; }
+        .lb-sub { font-size: 13px; color: #888; font-weight: bold; margin-top: 2px;}
+        .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; min-width: 60px; }
+        .lb-form { font-size: 10px; margin-top: 4px; text-align: right; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -167,7 +194,6 @@ def run_football_app():
         st.session_state.master_db = df_p
         st.session_state.match_db = df_m
     else:
-        # Just ensure connection exists
         if 'conn' not in st.session_state:
              conn, df_p, df_m = load_data()
              st.session_state.conn = conn
@@ -289,13 +315,12 @@ def run_football_app():
         if not st.session_state.match_squad.empty:
             pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
             fig, ax = pitch.draw(figsize=(10, 6))
-            # ... (Full drawing logic abbreviated for brevity, but same as before) ...
-            # Reuse your existing drawing logic here
+            # ... (Drawing logic) ...
             st.pyplot(fig)
         else:
             st.info("Generate a squad first!")
 
-    # --- TAB 3: ANALYTICS (NEW!) ---
+    # --- TAB 3: ANALYTICS (UPGRADED) ---
     with tab3:
         st.markdown("### 📊 SMFC ANALYTICS HUB")
         
@@ -313,18 +338,42 @@ def run_football_app():
             c2.metric("GOALS", int(total_goals))
             c3.metric("PLAYERS", len(official_names))
 
-            # Leaderboard
+            # --- 🏆 NEW CARD LEADERBOARD ---
             st.write("---")
+            st.markdown("#### 🏆 TOP PERFORMERS (Min 2 Matches)")
+            
             lb = calculate_leaderboard(df_m, official_names)
+            
             if not lb.empty:
-                st.dataframe(lb[['M', 'W', 'L', 'D', 'Win %', 'Form (Last 5)']], width=1000, height=400)
+                # Render HTML Cards
+                for player_name, row in lb.iterrows():
+                    # Rank Logic (1st=Gold, 2nd=Silver, 3rd=Bronze color logic handled in CSS if needed, simple here)
+                    rank = row['Rank']
+                    win_rate = row['Win %']
+                    matches = row['M']
+                    form = row['Form (Last 5)']
+                    
+                    st.markdown(f"""
+                    <div class="lb-card">
+                        <div class="lb-rank">#{rank}</div>
+                        <div class="lb-details">
+                            <span class="lb-name">{player_name}</span>
+                            <span class="lb-sub">{matches} Matches • {row['W']} Wins</span>
+                        </div>
+                        <div>
+                            <div class="lb-winrate">{win_rate}%</div>
+                            <div class="lb-form">{form}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("Not enough data to generate rankings. Need players with at least 2 matches.")
 
             # Hidden Admin Zone
             st.write("---")
             with st.expander("⚙️ ADMIN ZONE (Log Match)"):
                 t_paste, t_man = st.tabs(["📋 PASTE", "✍️ MANUAL"])
-                
-                # Session State for Forms
+                # ... (Admin Logic same as before) ...
                 if 'f_venue' not in st.session_state: st.session_state.f_venue = "BFC"
                 if 'f_sb' not in st.session_state: st.session_state.f_sb = 0
                 if 'f_sr' not in st.session_state: st.session_state.f_sr = 0
@@ -370,7 +419,6 @@ def run_football_app():
                                     "Score_Blue": sb, "Score_Red": sr, "Winner": w
                                 }])
                                 try:
-                                    # Use the connection saved in session state
                                     updated = pd.concat([st.session_state.match_db, new_row], ignore_index=True)
                                     st.session_state.conn.update(worksheet="Match_History", data=updated)
                                     st.success("Saved!")
