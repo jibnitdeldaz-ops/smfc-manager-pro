@@ -424,6 +424,7 @@ def run_football_app():
                                 st.error("Wrong Password")
 
     # --- TAB 4: DATABASE ---
+    #
     with tab4:
         if st.text_input("ENTER DB PASSCODE", type="password") == "1234":
             st.data_editor(st.session_state.master_db, use_container_width=True)
