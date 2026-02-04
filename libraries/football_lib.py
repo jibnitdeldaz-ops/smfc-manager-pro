@@ -138,12 +138,25 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- RESTORED CSS (THE VIBE) ---
+    # --- RESTORED CSS (THE VIBE & READABILITY FIX) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
-        .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); }
+        .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
+        /* --- FIX: INPUT READABILITY (WHITE TEXT) --- */
+        input, textarea { color: #ffffff !important; }
+        div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div {
+             background-color: rgba(255,255,255,0.08) !important;
+             border: 1px solid rgba(255,255,255,0.2) !important;
+             color: white !important;
+        }
+        div[data-baseweb="select"] > div {
+            background-color: rgba(255,255,255,0.08) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+        }
+
         /* 1. BADGES */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
