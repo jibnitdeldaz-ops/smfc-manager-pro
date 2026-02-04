@@ -22,16 +22,13 @@
       enable = true;
       previews = {
          web = {
-          # COMMAND UPDATED: 
-          # 1. Creates venv
-          # 2. Installs requirements from SMFC_Manager folder
-          # 3. Runs app from SMFC_Manager folder
+          # COMMAND UPDATED: Points to Super_App/Home.py
           command = [
-            #"sh" "-c" 
-            #"python3 -m venv venv && source venv/bin/activate && pip install -r SMFC_Manager/requirements.txt && streamlit run SMFC_Manager/app.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false"
-           "/bin/bash" "-c"
-            "source 02_Live_Dashboard/venv/bin/activate && pip install -r 02_Live_Dashboard/requirements.txt && streamlit run 02_Live_Dashboard/market.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false"
-           ];
+            "/bin/bash"
+            "-c"
+            # 1. Create/Activate venv  2. Install Req  3. Run Home.py
+            "python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && streamlit run Super_App/Home.py --server.port $PORT --server.address 0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false"
+          ];
           manager = "web";
         };
       };
