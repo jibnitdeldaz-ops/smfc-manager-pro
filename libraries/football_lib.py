@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from streamlit_gsheets import GSheetsConnection
+# from streamlit_gsheets import GSheetsConnection # Not used anymore
 from mplsoccer import Pitch
 import matplotlib.patheffects as path_effects
 import matplotlib.pyplot as plt
@@ -39,9 +39,14 @@ def toggle_selection(player_name):
 
 def load_data():
     try:
-        url = st.secrets["connections"]["gsheets"]["spreadsheet"]
+        # Use the ID directly to construct a robust CSV export URL
+        sheet_id = "1-ShO5kfDdPH4FxSX-S9tyUNeyLAIOHi44NePaKff7Lw"
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid=0"
         df = pd.read_csv(url)
-    except Exception:
+    except Exception as e:
+        # Debugging: Show the error!
+        st.error(f"DATA LOAD FATAL ERROR: {e}")
+        # Fallback empty dataframe
         df = pd.DataFrame(columns=["Name", "Position", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
     
     if 'Selected' not in df.columns: df['Selected'] = False
@@ -186,8 +191,11 @@ def run_football_app():
     """, unsafe_allow_html=True)
 
     # --- 📊 SESSION STATE INIT ---
-    if 'master_db' not in st.session_state:
-        st.session_state.master_db = load_data()
+    # Ensure we load data if it's missing OR if it resulted in an empty dataframe previously (stale state)
+    if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
+        with st.spinner("Fetching Player Database..."):
+            st.session_state.master_db = load_data()
+            
     if 'match_squad' not in st.session_state:
         st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state:
@@ -216,6 +224,11 @@ def run_football_app():
         <div class="club-title-text">SMFC MANAGER PRO</div>
     </div>
     """, unsafe_allow_html=True)
+
+    # --- 🔄 REFRESH BUTTON (To fix Valid-Data-Not-Loading issues) ---
+    if st.sidebar.button("🔄 Refresh Database", use_container_width=True):
+        st.session_state.pop('master_db', None)
+        st.rerun()
 
     # --- 📌 TABS ---
     tab1, tab2, tab3 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "DATABASE"])
