@@ -138,49 +138,56 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS: THE NEON WHITE THEME ---
+    # --- CSS: THE FINAL POLISH ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* INPUT READABILITY */
-        input, textarea { color: #ffffff !important; }
-        div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div {
+        /* 1. INPUT FIELDS (UNIFORM DARK THEME) */
+        /* Targets Text Inputs, Date Pickers, Select Boxes, Text Areas */
+        div[data-baseweb="input"] > div, 
+        div[data-baseweb="textarea"] > div,
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="base-input"] {
              background-color: rgba(255,255,255,0.08) !important;
              border: 1px solid rgba(255,255,255,0.2) !important;
              color: white !important;
         }
-        div[data-baseweb="select"] > div {
-            background-color: rgba(255,255,255,0.08) !important;
-            color: white !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
+        input, textarea { color: #ffffff !important; }
+        
+        /* 2. LABELS (GLOWING WHITE & READABLE) */
+        /* Targets "Match Date", "Venue", "Kickoff" etc. */
+        div[data-testid="stWidgetLabel"] p {
+            color: #ffffff !important;
+            font-weight: 800 !important;
+            text-transform: uppercase;
+            text-shadow: 0 0 8px rgba(255,255,255,0.6);
+            font-size: 14px !important;
         }
 
-        /* METRICS READABILITY (GLOWING WHITE) */
+        /* 3. METRICS (Matches, Goals, Players) */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
 
-        /* BADGES */
+        /* 4. BADGES */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
 
-        /* BUTTONS */
+        /* 5. BUTTONS */
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         div.stButton > button:hover { transform: translateY(-2px); opacity: 0.9; }
 
-        /* CONTAINERS */
+        /* 6. CONTAINERS & CARDS */
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        
-        /* CARDS */
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; margin-bottom: 6px; display: flex; align-items: center; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
 
-        /* SPOTLIGHT & LEADERBOARD (NEON WHITE) */
+        /* 7. SPOTLIGHT & LEADERBOARD (NEON WHITE) */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
@@ -219,7 +226,7 @@ def run_football_app():
     with tab1:
         smfc_n, guest_n, total_n = get_counts()
         
-        # --- 3 BADGES RESTORED ---
+        # --- 3 BADGES ---
         st.markdown(f"""
         <div class="section-box">
             <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -270,7 +277,7 @@ def run_football_app():
         st.text_input("Guests (Comma separated)", key="guest_input_val")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- MATCH SETTINGS (FIXED: GOATARENA & SLIDER & KEYS) ---
+        # --- MATCH SETTINGS (FIXED LABELS & BACKGROUNDS) ---
         with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
             match_date = c1.date_input("Match Date", datetime.today(), key="match_date_input")
@@ -278,7 +285,7 @@ def run_football_app():
             venue_opt = c2.selectbox("Venue", ["BFC", "GoatArena", "SportZ", "Other"], key="venue_select")
             if venue_opt == "Other": venue = c2.text_input("Venue Name", "Ground", key="venue_text")
             else: venue = venue_opt
-            duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider") # FIXED SLIDER
+            duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider")
             st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"], key="fmt_select")
 
         # GENERATE BUTTON
@@ -322,9 +329,9 @@ def run_football_app():
                 """, height=70
             )
 
-            # PLAYER TRANSFER WINDOW
+            # PLAYER TRANSFER WINDOW (EMOJI REMOVED)
             st.write("---")
-            st.markdown("<h3 style='text-align:center; color:#FF5722;'>↔️ TRANSFER WINDOW</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
             with col_tr_red:
                 st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
@@ -383,7 +390,7 @@ def run_football_app():
             st.pyplot(fig)
         else: st.info("Generate Squad First")
 
-    # TAB 3: ANALYTICS (NEON WHITE TITLES)
+    # TAB 3: ANALYTICS
     with tab3:
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
