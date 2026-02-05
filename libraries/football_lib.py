@@ -104,7 +104,7 @@ def calculate_leaderboard(df_matches, official_names):
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
 
-# --- 📥 DATA LOADING ---
+# --- 📥 DATA LOADING (ROBUST) ---
 def load_data():
     conn = None
     try:
@@ -119,25 +119,21 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (UPDATED TO 3-3-3) ---
-# Coordinates are (X, Y). X is length (0-100), Y is width (0-100).
-# RED attacks Right to Left (Start X=100, End X=0) -> No, standard is Red left, Blue right usually.
-# Let's assume Red is on Left side (0-50) and Blue on Right side (50-100) for half pitch, OR full pitch.
-# These coordinates are for Full Pitch. Red GK at 0, Blue GK at 100.
+# --- 📌 PRESETS (CORRECTED: 3 DEF, 4 MID, 2 FWD) ---
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
-        # RED (Defends 0, Attacks 100) -> 3-3-3
+        # RED (Left Side): 3-4-2
         "RED_COORDS": [
-            (15, 20), (15, 50), (15, 80),  # 3 DEF
-            (35, 20), (35, 50), (35, 80),  # 3 MID
-            (55, 20), (55, 50), (55, 80)   # 3 FWD
+            (15, 20), (15, 50), (15, 80),        # 3 DEF
+            (35, 15), (35, 38), (35, 62), (35, 85), # 4 MID
+            (55, 35), (55, 65)                   # 2 FWD
         ],
-        # BLUE (Defends 100, Attacks 0) -> 3-3-3
+        # BLUE (Right Side): 3-4-2
         "BLUE_COORDS": [
-            (85, 20), (85, 50), (85, 80),  # 3 DEF
-            (65, 20), (65, 50), (65, 80),  # 3 MID
-            (45, 20), (45, 50), (45, 80)   # 3 FWD
+            (85, 20), (85, 50), (85, 80),        # 3 DEF
+            (65, 15), (65, 38), (65, 62), (65, 85), # 4 MID
+            (45, 35), (45, 65)                   # 2 FWD
         ]
     },
     "7 vs 7": {
@@ -153,23 +149,25 @@ formation_presets = {
     "5 vs 5": {
         "limit": 5,
         "RED_COORDS": [(15, 30), (15, 70), (35, 50), (50, 30), (50, 70)],
-        "BLUE_COORDS": [(85, 30), (85, 70), (65, 50), (50, 30), (50, 70)] # Shared mid?
+        "BLUE_COORDS": [(85, 30), (85, 70), (65, 50), (50, 30), (50, 70)] 
     }
 }
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS ---
+    # --- CSS: THE FINAL POLISH ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* INPUTS & LABELS */
+        /* INPUTS */
         input, textarea { color: #ffffff !important; }
         div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {
              background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important;
         }
+        
+        /* LABELS */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
 
         /* METRICS */
@@ -305,10 +303,9 @@ def run_football_app():
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TAB 2: TACTICS (FIXED LOGIC) ---
+    # --- TAB 2: TACTICS (3-4-2 FORMATION & FORCE FILL) ---
     with tab2:
         if not st.session_state.match_squad.empty:
-            # 1. SETUP PITCH & COLUMNS
             c_pitch, c_subs = st.columns([3, 1])
             
             with c_pitch:
@@ -322,34 +319,25 @@ def run_football_app():
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
                 
-                # 2. ASSIGN PLAYERS TO COORDINATES (FORCE FILL)
-                # Sort players to ensure defenders fill defense spots, etc. if positions match, otherwise simple fill
-                reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values("Position", ascending=False) # GK, FWD, MID, DEF roughly
+                # FORCE FILL LOGIC: Take 9 players, assign to 9 spots. Rest are subs.
+                reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values("Position", ascending=False)
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values("Position", ascending=False)
                 
-                # Get Coordinate Lists
                 r_spots = coords_map.get("RED_COORDS", [])
                 b_spots = coords_map.get("BLUE_COORDS", [])
                 
-                # Plot Reds
                 subs_r = []
                 for i, row in enumerate(reds.itertuples()):
-                    if i < len(r_spots):
-                        draw_player(row.Name, r_spots[i][0], r_spots[i][1], '#ff4b4b')
-                    else:
-                        subs_r.append(row.Name)
+                    if i < len(r_spots): draw_player(row.Name, r_spots[i][0], r_spots[i][1], '#ff4b4b')
+                    else: subs_r.append(row.Name)
                         
-                # Plot Blues
                 subs_b = []
                 for i, row in enumerate(blues.itertuples()):
-                    if i < len(b_spots):
-                        draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
-                    else:
-                        subs_b.append(row.Name)
+                    if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
+                    else: subs_b.append(row.Name)
                 
                 st.pyplot(fig)
 
-            # 3. SUBSTITUTES PANEL
             with c_subs:
                 st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
                 if subs_r:
@@ -358,8 +346,7 @@ def run_football_app():
                 if subs_b:
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
-                if not subs_r and not subs_b:
-                    st.info("No Subs")
+                if not subs_r and not subs_b: st.info("No Subs")
 
         else: st.info("Generate Squad First")
 
