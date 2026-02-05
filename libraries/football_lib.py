@@ -104,95 +104,94 @@ def calculate_leaderboard(df_matches, official_names):
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
 
-# --- 📥 DATA LOADING (ROBUST) ---
+# --- 📥 DATA LOADING ---
 def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="Sheet1", ttl=0)
-        
-        if df is None or df.empty:
-             raise ValueError("Sheet1 returned empty data")
-             
+        if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
-        
-        try:
-            df_matches = conn.read(worksheet="Match_History", ttl=0)
-        except:
-            df_matches = pd.DataFrame()
-            
+        try: df_matches = conn.read(worksheet="Match_History", ttl=0)
+        except: df_matches = pd.DataFrame()
         return conn, df, df_matches
-
     except Exception as e:
-        # Fallback to prevent crash
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS ---
+# --- 📌 PRESETS (UPDATED TO 3-3-3) ---
+# Coordinates are (X, Y). X is length (0-100), Y is width (0-100).
+# RED attacks Right to Left (Start X=100, End X=0) -> No, standard is Red left, Blue right usually.
+# Let's assume Red is on Left side (0-50) and Blue on Right side (50-100) for half pitch, OR full pitch.
+# These coordinates are for Full Pitch. Red GK at 0, Blue GK at 100.
 formation_presets = {
-    "9 vs 9": {"limit": 9, "DEF_R": [(20,20),(20,50),(20,80)], "MID_R": [(35,15),(35,38),(35,62),(35,85)], "FWD_R": [(45,35),(45,65)], "DEF_B": [(80,20),(80,50),(80,80)], "MID_B": [(65,15),(65,38),(65,62),(65,85)], "FWD_B": [(55,35),(55,65)]},
-    "7 vs 7": {"limit": 7, "DEF_R": [(20,30),(20,70)], "MID_R": [(35,20),(35,50),(35,80)], "FWD_R": [(45,35),(45,65)], "DEF_B": [(80,30),(80,70)], "MID_B": [(65,20),(65,50),(65,80)], "FWD_B": [(55,35),(55,65)]},
-    "6 vs 6": {"limit": 6, "DEF_R": [(20,30),(20,70)], "MID_R": [(35,30),(35,70)], "FWD_R": [(45,35),(45,65)], "DEF_B": [(80,30),(80,70)], "MID_B": [(65,30),(65,70)], "FWD_B": [(55,35),(55,65)]},
-    "5 vs 5": {"limit": 5, "DEF_R": [(20,30),(20,70)], "MID_R": [(35,30),(35,70)], "FWD_R": [(45,50)], "DEF_B": [(80,30),(80,70)], "MID_B": [(65,30),(65,70)], "FWD_B": [(55,50)]}
+    "9 vs 9": {
+        "limit": 9,
+        # RED (Defends 0, Attacks 100) -> 3-3-3
+        "RED_COORDS": [
+            (15, 20), (15, 50), (15, 80),  # 3 DEF
+            (35, 20), (35, 50), (35, 80),  # 3 MID
+            (55, 20), (55, 50), (55, 80)   # 3 FWD
+        ],
+        # BLUE (Defends 100, Attacks 0) -> 3-3-3
+        "BLUE_COORDS": [
+            (85, 20), (85, 50), (85, 80),  # 3 DEF
+            (65, 20), (65, 50), (65, 80),  # 3 MID
+            (45, 20), (45, 50), (45, 80)   # 3 FWD
+        ]
+    },
+    "7 vs 7": {
+        "limit": 7,
+        "RED_COORDS": [(15, 30), (15, 70), (35, 20), (35, 50), (35, 80), (55, 35), (55, 65)],
+        "BLUE_COORDS": [(85, 30), (85, 70), (65, 20), (65, 50), (65, 80), (45, 35), (45, 65)]
+    },
+    "6 vs 6": {
+        "limit": 6,
+        "RED_COORDS": [(15, 30), (15, 70), (35, 30), (35, 70), (55, 35), (55, 65)],
+        "BLUE_COORDS": [(85, 30), (85, 70), (65, 30), (65, 70), (45, 35), (45, 65)]
+    },
+    "5 vs 5": {
+        "limit": 5,
+        "RED_COORDS": [(15, 30), (15, 70), (35, 50), (50, 30), (50, 70)],
+        "BLUE_COORDS": [(85, 30), (85, 70), (65, 50), (50, 30), (50, 70)] # Shared mid?
+    }
 }
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS: THE FINAL POLISH ---
+    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* 1. INPUT FIELDS (UNIFORM DARK THEME) */
-        /* Targets Text Inputs, Date Pickers, Select Boxes, Text Areas */
-        div[data-baseweb="input"] > div, 
-        div[data-baseweb="textarea"] > div,
-        div[data-baseweb="select"] > div,
-        div[data-baseweb="base-input"] {
-             background-color: rgba(255,255,255,0.08) !important;
-             border: 1px solid rgba(255,255,255,0.2) !important;
-             color: white !important;
-        }
+        /* INPUTS & LABELS */
         input, textarea { color: #ffffff !important; }
-        
-        /* 2. LABELS (GLOWING WHITE & READABLE) */
-        /* Targets "Match Date", "Venue", "Kickoff" etc. */
-        div[data-testid="stWidgetLabel"] p {
-            color: #ffffff !important;
-            font-weight: 800 !important;
-            text-transform: uppercase;
-            text-shadow: 0 0 8px rgba(255,255,255,0.6);
-            font-size: 14px !important;
+        div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {
+             background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important;
         }
+        div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
 
-        /* 3. METRICS (Matches, Goals, Players) */
+        /* METRICS */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
 
-        /* 4. BADGES */
+        /* COMPONENTS */
         .badge-box { display: flex; gap: 5px; }
-        .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
-        .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
+        .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
-
-        /* 5. BUTTONS */
-        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
-        div.stButton > button:hover { transform: translateY(-2px); opacity: 0.9; }
-
-        /* 6. CONTAINERS & CARDS */
+        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; margin-bottom: 6px; display: flex; align-items: center; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
-
-        /* 7. SPOTLIGHT & LEADERBOARD (NEON WHITE) */
+        
+        /* ANALYTICS */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
-        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
+        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
     </style>
@@ -201,43 +200,22 @@ def run_football_app():
     # SESSION STATE
     if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
         conn, df_p, df_m = load_data()
-        st.session_state.conn = conn
-        st.session_state.master_db = df_p
-        st.session_state.match_db = df_m
+        st.session_state.conn = conn; st.session_state.master_db = df_p; st.session_state.match_db = df_m
     else:
-        if 'conn' not in st.session_state:
-             conn, df_p, df_m = load_data()
-             st.session_state.conn = conn
+        if 'conn' not in st.session_state: conn, df_p, df_m = load_data(); st.session_state.conn = conn
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
 
-    # HEADER
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
-    
-    if st.sidebar.button("🔄 Refresh Data"):
-        st.session_state.pop('master_db', None)
-        st.rerun()
+    if st.sidebar.button("🔄 Refresh Data"): st.session_state.pop('master_db', None); st.rerun()
 
-    # TABS
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
-    # TAB 1: LOBBY
+    # --- TAB 1: LOBBY ---
     with tab1:
         smfc_n, guest_n, total_n = get_counts()
-        
-        # --- 3 BADGES ---
-        st.markdown(f"""
-        <div class="section-box">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div>
-                <div class="badge-box">
-                    <div class="badge-smfc">{smfc_n} SMFC</div>
-                    <div class="badge-guest">{guest_n} GUEST</div>
-                    <div class="badge-total">{total_n} TOTAL</div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=100, label_visibility="collapsed")
@@ -252,14 +230,12 @@ def run_football_app():
                         match = False
                         for idx, row in st.session_state.master_db.iterrows():
                             if clean_whatsapp_name(str(row['Name'])).lower() == clean_name.lower():
-                                st.session_state.master_db.at[idx, 'Selected'] = True
-                                match = True; break
+                                st.session_state.master_db.at[idx, 'Selected'] = True; match = True; break
                         if not match: new_guests.append(clean_name)
                     st.session_state.guest_input_val = ", ".join(list(set(get_guests_list() + new_guests)))
                     st.rerun()
                 else: st.error("DB Offline")
 
-        # CHECKLIST TABS
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
         def render_checklist(df_s, t_n):
             if df_s.empty or 'Name' not in df_s.columns: return
@@ -272,24 +248,18 @@ def run_football_app():
         with pos_tabs[1]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'FWD'], "fwd")
         with pos_tabs[2]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'MID'], "mid")
         with pos_tabs[3]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'DEF'], "def")
-        
-        st.write("")
-        st.text_input("Guests (Comma separated)", key="guest_input_val")
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.write(""); st.text_input("Guests (Comma separated)", key="guest_input_val"); st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- MATCH SETTINGS (FIXED LABELS & BACKGROUNDS) ---
         with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
             match_date = c1.date_input("Match Date", datetime.today(), key="match_date_input")
             match_time = c1.time_input("Kickoff", datetime.now().time(), key="match_time_input")
             venue_opt = c2.selectbox("Venue", ["BFC", "GoatArena", "SportZ", "Other"], key="venue_select")
-            if venue_opt == "Other": venue = c2.text_input("Venue Name", "Ground", key="venue_text")
-            else: venue = venue_opt
+            venue = c2.text_input("Venue Name", "Ground", key="venue_text") if venue_opt == "Other" else venue_opt
             duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider")
             st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"], key="fmt_select")
 
-        # GENERATE BUTTON
-        st.write("")
+        st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
                 active = st.session_state.master_db[st.session_state.master_db['Selected'] == True].copy()
@@ -303,12 +273,10 @@ def run_football_app():
                     st.rerun()
             else: st.error("Database offline.")
 
-        # --- PREVIEW & COPY ---
         if not st.session_state.match_squad.empty:
             st.markdown('<div class="section-box"><div style="color:#FF5722; font-weight:bold; font-size:18px;">LINEUPS</div>', unsafe_allow_html=True)
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
-            
             c1, c2 = st.columns(2)
             with c1: 
                 st.markdown("<h4 style='color:#ff4b4b; text-align:center'>RED TEAM</h4>", unsafe_allow_html=True)
@@ -317,21 +285,11 @@ def run_football_app():
                 st.markdown("<h4 style='color:#1c83e1; text-align:center'>BLUE TEAM</h4>", unsafe_allow_html=True)
                 for _, p in blues.iterrows(): st.markdown(f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span></div>", unsafe_allow_html=True)
             
-            # COPY BUTTON
-            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
-            b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
+            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
             summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
-            
-            components.html(
-                f"""
-                <textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea>
-                <button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>
-                """, height=70
-            )
+            components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
-            # PLAYER TRANSFER WINDOW (EMOJI REMOVED)
-            st.write("---")
-            st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
+            st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
             with col_tr_red:
                 st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
@@ -340,63 +298,77 @@ def run_football_app():
                 st.markdown(f"<div style='border:2px solid #1c83e1; border-radius:10px; padding:10px; text-align:center; color:#1c83e1; font-weight:bold;'>🔵 FROM BLUE</div>", unsafe_allow_html=True)
                 s_blue = st.selectbox("Select Blue", blues["Name"], key="sel_blue", label_visibility="collapsed")
             with col_btn:
-                st.write("")
-                st.write("")
+                st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
-                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
-                    st.rerun()
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # TAB 2: TACTICS
+    # --- TAB 2: TACTICS (FIXED LOGIC) ---
     with tab2:
         if not st.session_state.match_squad.empty:
-            pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
-            fig, ax = pitch.draw(figsize=(10, 6))
+            # 1. SETUP PITCH & COLUMNS
+            c_pitch, c_subs = st.columns([3, 1])
             
-            def draw_player(player, x, y, color):
-                pitch.scatter(x, y, s=500, c=color, edgecolors='white', ax=ax, zorder=2)
-                ax.text(x, y-4, player["Name"], color='black', ha='center', fontsize=9, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
+            with c_pitch:
+                pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
+                fig, ax = pitch.draw(figsize=(10, 8))
+                
+                def draw_player(player_name, x, y, color):
+                    pitch.scatter(x, y, s=600, marker='h', c=color, edgecolors='white', linewidth=2, ax=ax, zorder=2)
+                    ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
 
-            fmt = st.session_state.get('match_format', '9 vs 9')
-            coords = formation_presets.get(fmt, formation_presets['9 vs 9'])
-            
-            reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
-            assigned_r = {"DEF":[], "MID":[], "FWD":[]}
-            rem_r = []
-            for _, p in reds.iterrows():
-                pos = p["Position"] if p["Position"] in assigned_r else "MID"
-                if len(assigned_r[pos]) < len(coords.get(f"{pos}_R", [])): assigned_r[pos].append(p)
-                else: rem_r.append(p)
-            for role, players in assigned_r.items():
-                for i, p in enumerate(players):
-                    x, y = coords[f"{role}_R"][i]
-                    draw_player(p, x, y, '#ff4b4b')
+                fmt = st.session_state.get('match_format', '9 vs 9')
+                coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
+                
+                # 2. ASSIGN PLAYERS TO COORDINATES (FORCE FILL)
+                # Sort players to ensure defenders fill defense spots, etc. if positions match, otherwise simple fill
+                reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values("Position", ascending=False) # GK, FWD, MID, DEF roughly
+                blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values("Position", ascending=False)
+                
+                # Get Coordinate Lists
+                r_spots = coords_map.get("RED_COORDS", [])
+                b_spots = coords_map.get("BLUE_COORDS", [])
+                
+                # Plot Reds
+                subs_r = []
+                for i, row in enumerate(reds.itertuples()):
+                    if i < len(r_spots):
+                        draw_player(row.Name, r_spots[i][0], r_spots[i][1], '#ff4b4b')
+                    else:
+                        subs_r.append(row.Name)
+                        
+                # Plot Blues
+                subs_b = []
+                for i, row in enumerate(blues.itertuples()):
+                    if i < len(b_spots):
+                        draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
+                    else:
+                        subs_b.append(row.Name)
+                
+                st.pyplot(fig)
 
-            blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
-            assigned_b = {"DEF":[], "MID":[], "FWD":[]}
-            rem_b = []
-            for _, p in blues.iterrows():
-                pos = p["Position"] if p["Position"] in assigned_b else "MID"
-                if len(assigned_b[pos]) < len(coords.get(f"{pos}_B", [])): assigned_b[pos].append(p)
-                else: rem_b.append(p)
-            for role, players in assigned_b.items():
-                for i, p in enumerate(players):
-                    x, y = coords[f"{role}_B"][i]
-                    draw_player(p, x, y, '#1c83e1')
+            # 3. SUBSTITUTES PANEL
+            with c_subs:
+                st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
+                if subs_r:
+                    st.markdown("<div style='color:#ff4b4b; font-weight:bold;'>🔴 RED SUBS</div>", unsafe_allow_html=True)
+                    for s in subs_r: st.markdown(f"- {s}")
+                if subs_b:
+                    st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
+                    for s in subs_b: st.markdown(f"- {s}")
+                if not subs_r and not subs_b:
+                    st.info("No Subs")
 
-            st.pyplot(fig)
         else: st.info("Generate Squad First")
 
-    # TAB 3: ANALYTICS
+    # --- TAB 3: ANALYTICS ---
     with tab3:
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             
-            # Metrics
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
@@ -423,7 +395,7 @@ def run_football_app():
                     if parsed: st.success(f"Parsed: {parsed}")
                     else: st.warning("Failed to parse")
 
-    # TAB 4: DB
+    # --- TAB 4: DATABASE ---
     with tab4:
         if st.text_input("Password", type="password") == "1234":
             st.dataframe(st.session_state.master_db)
