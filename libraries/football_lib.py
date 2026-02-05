@@ -138,13 +138,13 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- RESTORED CSS (THE VIBE & READABILITY FIX) ---
+    # --- CSS: THE NEON WHITE THEME ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* --- FIX: INPUT READABILITY (WHITE TEXT) --- */
+        /* INPUT READABILITY */
         input, textarea { color: #ffffff !important; }
         div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div {
              background-color: rgba(255,255,255,0.08) !important;
@@ -157,30 +157,30 @@ def run_football_app():
             border: 1px solid rgba(255,255,255,0.2) !important;
         }
 
-        /* --- FIX: METRICS READABILITY (GLOWING WHITE) --- */
+        /* METRICS READABILITY (GLOWING WHITE) */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
 
-        /* 1. BADGES */
+        /* BADGES */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
 
-        /* 2. BUTTONS */
+        /* BUTTONS */
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; letter-spacing: 1px; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         div.stButton > button:hover { transform: translateY(-2px); opacity: 0.9; }
 
-        /* 3. CONTAINERS */
+        /* CONTAINERS */
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         
-        /* 4. PLAYER CARDS */
+        /* CARDS */
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px; margin-bottom: 6px; display: flex; align-items: center; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
 
-        /* 5. SPOTLIGHT & LEADERBOARD (GLOWING WHITE & BIGGER) */
+        /* SPOTLIGHT & LEADERBOARD (NEON WHITE) */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
@@ -270,18 +270,18 @@ def run_football_app():
         st.text_input("Guests (Comma separated)", key="guest_input_val")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # --- MATCH SETTINGS (TIME RESTORED) ---
+        # --- MATCH SETTINGS (FIXED: GOATARENA & SLIDER & KEYS) ---
         with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
-            match_date = c1.date_input("Match Date", datetime.today())
-            match_time = c1.time_input("Kickoff", datetime.now().time())
-            venue_opt = c2.selectbox("Venue", ["BFC", "SportZ", "Other"])
-            if venue_opt == "Other": venue = c2.text_input("Venue Name", "Ground")
+            match_date = c1.date_input("Match Date", datetime.today(), key="match_date_input")
+            match_time = c1.time_input("Kickoff", datetime.now().time(), key="match_time_input")
+            venue_opt = c2.selectbox("Venue", ["BFC", "GoatArena", "SportZ", "Other"], key="venue_select")
+            if venue_opt == "Other": venue = c2.text_input("Venue Name", "Ground", key="venue_text")
             else: venue = venue_opt
-            duration = c2.slider("Duration (Mins)", 30, 120, 90, 15)
-            st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"])
+            duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider") # FIXED SLIDER
+            st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"], key="fmt_select")
 
-        # GENERATE BUTTON (ORANGE RESTORED via CSS above)
+        # GENERATE BUTTON
         st.write("")
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
@@ -310,12 +310,11 @@ def run_football_app():
                 st.markdown("<h4 style='color:#1c83e1; text-align:center'>BLUE TEAM</h4>", unsafe_allow_html=True)
                 for _, p in blues.iterrows(): st.markdown(f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span></div>", unsafe_allow_html=True)
             
-            # COPY BUTTON LOGIC
+            # COPY BUTTON
             r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
             b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
             summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
             
-            # HIDDEN TEXTAREA HACK FOR COPY
             components.html(
                 f"""
                 <textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea>
@@ -323,7 +322,7 @@ def run_football_app():
                 """, height=70
             )
 
-            # PLAYER TRANSFER WINDOW (RESTORED STYLE)
+            # PLAYER TRANSFER WINDOW
             st.write("---")
             st.markdown("<h3 style='text-align:center; color:#FF5722;'>↔️ TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
@@ -384,7 +383,7 @@ def run_football_app():
             st.pyplot(fig)
         else: st.info("Generate Squad First")
 
-    # TAB 3: ANALYTICS (GLOWING WHITE FIX)
+    # TAB 3: ANALYTICS (NEON WHITE TITLES)
     with tab3:
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
@@ -401,7 +400,6 @@ def run_football_app():
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
 
-                # UPDATED HTML FOR GLOWING WHITE TITLES, VALUES & NAMES
                 sp1, sp2, sp3 = st.columns(3)
                 with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
                 with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
