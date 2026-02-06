@@ -19,36 +19,23 @@ def get_img_as_base64(file):
     return ""
 
 def extract_whatsapp_players(text):
-    # 1. Global nuke of invisible characters
-    text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    # 2. Extract lines: Number -> Dot/Paren -> Name
+    # 1. Nuke invisible characters globally
+    text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
+    # 2. Find lines starting with Number + Dot/Bracket
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
-    # 3. Basic strip
-    cleaned_names = [m.strip() for m in matches if len(m.strip()) > 1]
-    return cleaned_names
+    # 3. Strip whitespace
+    return [m.strip() for m in matches if len(m.strip()) > 1]
 
-def clean_name_simple(text):
+def clean_for_guest(text):
     """
-    Master Cleaner: Strips status, brackets, and invisible chars to find the name.
+    Only used if NO match is found in DB. Cleans 'Naveen (T)' to 'Naveen'.
     """
-    # 1. Invisible chars (Just in case)
-    text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    
-    # 2. Remove anything in parentheses: "Naveen (T)", "John (Late)"
-    # Matches space (optional) + ( + anything + )
-    text = re.sub(r'\s*\([^)]*\)', '', text)
-    
-    # 3. Remove " - Status": "Naveen - T", "John - Late"
-    # Matches space + hyphen + anything to end of line
+    # Remove (...) or [...] or full-width brackets
+    text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
+    # Remove trailing hyphen/status
     text = re.sub(r'\s+[-–].*$', '', text)
-    
-    # 4. Remove loose " T" or " t" at the end of the name: "Naveen T"
-    # Only matches if preceded by space and is the last char
-    text = re.sub(r'\s+t$', '', text, flags=re.IGNORECASE)
-    
-    # 5. Remove common status words if unbracketed: "Naveen Tentative"
-    text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest)\b.*$', '', text, flags=re.IGNORECASE)
-    
+    # Remove loose "T" at the end
+    text = re.sub(r'\s+[tT]$', '', text)
     return text.strip()
 
 def get_guests_list():
@@ -137,19 +124,17 @@ def calculate_leaderboard(df_matches, official_names):
 
 # --- 🧠 ALGORITHMIC BALANCING ---
 def calculate_player_score(row):
-    """Calculates Power Score (0-100) based on Positional Weights + Star Rating"""
     stats = {
         'PAC': row.get('PAC', 70), 'SHO': row.get('SHO', 70),
         'PAS': row.get('PAS', 70), 'DRI': row.get('DRI', 70),
         'DEF': row.get('DEF', 70), 'PHY': row.get('PHY', 70)
     }
     for k, v in stats.items():
-        if pd.isna(v) or v == '': stats[k] = 70
-        else: stats[k] = float(v)
+        try: stats[k] = float(v)
+        except: stats[k] = 70.0
 
     pos = row.get('Position', 'MID')
     
-    # Positional Weights
     if pos == 'FWD':
         weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
     elif pos == 'DEF':
@@ -157,11 +142,10 @@ def calculate_player_score(row):
     else: 
         weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
 
-    # Star Rating Impact (40%)
-    star_r = row.get('StarRating', 3)
-    if pd.isna(star_r) or star_r == '': star_r = 3
-    star_score = 45 + (float(star_r) * 10)
+    try: star_r = float(row.get('StarRating', 3))
+    except: star_r = 3.0
     
+    star_score = 45 + (star_r * 10)
     return round((weighted_avg * 0.6) + (star_score * 0.4), 1)
 
 # --- 📥 DATA LOADING ---
@@ -179,7 +163,7 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY", "StarRating"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (SPACED OUT COORDINATES) ---
+# --- 📌 PRESETS ---
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
@@ -197,7 +181,6 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -210,14 +193,8 @@ def run_football_app():
             color: white !important;
         }
         
-        /* MOBILE COLUMN OPTIMIZATION */
         @media (max-width: 640px) {
-            div[data-testid="column"] {
-                min-width: 0 !important;
-                flex: 1 1 auto !important;
-                padding-left: 2px !important;
-                padding-right: 2px !important;
-            }
+            div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
             div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
         }
 
@@ -281,23 +258,40 @@ def run_football_app():
                     st.session_state.master_db['Selected'] = False 
                     new_guests = []
                     found_count = 0
-                    extracted_names = extract_whatsapp_players(whatsapp_text)
-                    for clean_line in extracted_names:
+                    
+                    # 1. Get raw lines
+                    raw_lines = extract_whatsapp_players(whatsapp_text)
+                    
+                    for line in raw_lines:
                         match = False
-                        clean_input = clean_name_simple(clean_line).lower()
+                        # 2. Check "STARTS WITH" logic against DB (Case Insensitive)
+                        line_clean = line.lower().strip()
+                        
                         for idx, row in st.session_state.master_db.iterrows():
-                            db_name = clean_name_simple(str(row['Name'])).lower()
-                            if db_name == clean_input:
-                                st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
-                        # If NOT match, append the CLEANED name to guests
-                        if not match: new_guests.append(clean_name_simple(clean_line))
+                            db_name = str(row['Name']).strip().lower()
+                            # Does input line start with DB name? e.g. "naveen (t)" starts with "naveen"
+                            if line_clean.startswith(db_name):
+                                # Ensure it's a full word match (e.g. "Rob" shouldn't match "Robert")
+                                # We check if the line is exactly the name OR the next char is not a letter
+                                if len(line_clean) == len(db_name) or not line_clean[len(db_name)].isalpha():
+                                    st.session_state.master_db.at[idx, 'Selected'] = True
+                                    match = True
+                                    found_count += 1
+                                    break
+                        
+                        # 3. IF NO MATCH -> CLEAN AND ADD AS GUEST
+                        if not match: 
+                            clean_guest_name = clean_for_guest(line)
+                            new_guests.append(clean_guest_name)
                     
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
+                    
                     st.session_state.checklist_version += 1
-                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
+                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!")
+                    st.rerun()
                 else: st.error("DB Offline")
 
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
@@ -451,8 +445,7 @@ def run_football_app():
             dt_end = dt_match + timedelta(minutes=duration)
             str_date = dt_match.strftime('%A, %d %b')
             str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
-            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
-            b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
+            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
             summary = f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
@@ -471,10 +464,12 @@ def run_football_app():
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
-                    s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
+                    s_red = s_red_str.rsplit(" (", 1)[0]
+                    s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
+                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
                     
                     r_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
@@ -484,7 +479,9 @@ def run_football_app():
                     st.rerun()
             
             if st.session_state.transfer_log:
-                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write("")
+                for log in st.session_state.transfer_log:
+                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
