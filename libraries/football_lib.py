@@ -239,8 +239,9 @@ def run_football_app():
     # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
+    
+    # CRITICAL VERSIONING INIT
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
-    # Match Log State
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
@@ -287,6 +288,7 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
+                # DYNAMIC KEY includes version to force refresh
                 key_id = f"chk_{row['Name']}_{t_n}_v{st.session_state.checklist_version}"
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(row['Name'],))
         
