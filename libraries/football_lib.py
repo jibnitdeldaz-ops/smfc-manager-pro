@@ -26,16 +26,20 @@ def extract_whatsapp_players(text):
     # 3. Strip whitespace
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
-def clean_for_guest(text):
+def clean_player_name(text):
     """
-    Only used if NO match is found in DB. Cleans 'Naveen (T)' to 'Naveen'.
+    Master Cleaner: Removes brackets, status codes, and extra spaces.
+    Input: "Naveen (T)", "John - Late", "Rob [GK]"
+    Output: "Naveen", "John", "Rob"
     """
-    # Remove (...) or [...] or full-width brackets
+    # 1. Remove (...) or [...] or { ... } or full-width
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
-    # Remove trailing hyphen/status
+    # 2. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
-    # Remove loose "T" at the end
-    text = re.sub(r'\s+[tT]$', '', text)
+    # 3. Remove loose "T" or "G" at the end (e.g. "Naveen T")
+    text = re.sub(r'\s+[tTgG]$', '', text)
+    # 4. Remove common status words if unbracketed
+    text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest|paid)\b.*$', '', text, flags=re.IGNORECASE)
     return text.strip()
 
 def get_guests_list():
@@ -153,10 +157,11 @@ def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet="Sheet1", ttl=0)
+        # SUPPRESS LOADING TEXT with show_spinner=False
+        df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
-        try: df_matches = conn.read(worksheet="Match_History", ttl=0)
+        try: df_matches = conn.read(worksheet="Match_History", ttl=0, show_spinner=False)
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
     except Exception as e:
@@ -165,16 +170,8 @@ def load_data():
 
 # --- 📌 PRESETS ---
 formation_presets = {
-    "9 vs 9": {
-        "limit": 9,
-        "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)],
-        "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]
-    },
-    "7 vs 7": {
-        "limit": 7,
-        "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
-        "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
-    },
+    "9 vs 9": {"limit": 9, "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]},
+    "7 vs 7": {"limit": 7, "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]},
     "6 vs 6": {"limit": 6, "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]},
     "5 vs 5": {"limit": 5, "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]}
 }
@@ -193,6 +190,7 @@ def run_football_app():
             color: white !important;
         }
         
+        /* MOBILE COLUMN OPTIMIZATION */
         @media (max-width: 640px) {
             div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
             div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
@@ -264,25 +262,21 @@ def run_football_app():
                     
                     for line in raw_lines:
                         match = False
-                        # 2. Check "STARTS WITH" logic against DB (Case Insensitive)
-                        line_clean = line.lower().strip()
+                        # 2. CLEAN FIRST (Aggressive clean to remove (T))
+                        clean_input = clean_player_name(line).lower()
                         
                         for idx, row in st.session_state.master_db.iterrows():
                             db_name = str(row['Name']).strip().lower()
-                            # Does input line start with DB name? e.g. "naveen (t)" starts with "naveen"
-                            if line_clean.startswith(db_name):
-                                # Ensure it's a full word match (e.g. "Rob" shouldn't match "Robert")
-                                # We check if the line is exactly the name OR the next char is not a letter
-                                if len(line_clean) == len(db_name) or not line_clean[len(db_name)].isalpha():
-                                    st.session_state.master_db.at[idx, 'Selected'] = True
-                                    match = True
-                                    found_count += 1
-                                    break
+                            # 3. Exact match check
+                            if db_name == clean_input:
+                                st.session_state.master_db.at[idx, 'Selected'] = True
+                                match = True
+                                found_count += 1
+                                break
                         
-                        # 3. IF NO MATCH -> CLEAN AND ADD AS GUEST
+                        # 4. IF NO MATCH -> Add the cleaned name
                         if not match: 
-                            clean_guest_name = clean_for_guest(line)
-                            new_guests.append(clean_guest_name)
+                            new_guests.append(clean_player_name(line))
                     
                     current = get_guests_list()
                     for g in new_guests:
@@ -367,10 +361,7 @@ def run_football_app():
                     chosen_pos = st.session_state.get(f"g_pos_{g}", "MID")
                     chosen_stars = st.session_state.get(f"g_lvl_{g}", "⭐⭐⭐")
                     rating_val = star_map.get(chosen_stars, 3)
-                    guest_rows.append({
-                        "Name": g, "Position": chosen_pos, "StarRating": rating_val,
-                        "PAC":70,"SHO":70,"PAS":70,"DRI":70,"DEF":70,"PHY":70
-                    })
+                    guest_rows.append({"Name": g, "Position": chosen_pos, "StarRating": rating_val, "PAC":70,"SHO":70,"PAS":70,"DRI":70,"DEF":70,"PHY":70})
                 if guest_rows: active = pd.concat([active, pd.DataFrame(guest_rows)], ignore_index=True)
                 
                 if not active.empty:
@@ -392,15 +383,10 @@ def run_football_app():
                             if len(red_team) > len(blue_team) + 1: turn = 1
                             elif len(blue_team) > len(red_team) + 1: turn = 0
                             
-                            if turn == 0:
-                                red_team.append(p); red_score += p['Power']; turn = 1
-                            else:
-                                blue_team.append(p); blue_score += p['Power']; turn = 0
+                            if turn == 0: red_team.append(p); red_score += p['Power']; turn = 1
+                            else: blue_team.append(p); blue_score += p['Power']; turn = 0
                     
-                    draft_players(gks)
-                    draft_players(defs)
-                    draft_players(mids)
-                    draft_players(fwds)
+                    draft_players(gks); draft_players(defs); draft_players(mids); draft_players(fwds)
                     
                     df_red = pd.DataFrame(red_team); df_red['Team'] = 'Red'
                     df_blue = pd.DataFrame(blue_team); df_blue['Team'] = 'Blue'
@@ -419,24 +405,16 @@ def run_football_app():
             r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
 
             red_html = ""; blue_html = ""
-            for _, p in reds.iterrows():
-                red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
-            for _, p in blues.iterrows():
-                blue_html += f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
+            for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
+            for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
 
             st.markdown(f"""
             <div class="section-box">
                 <div style="color:#FF5722; font-weight:bold; font-size:18px; margin-bottom: 10px;">LINEUPS</div>
                 <div style="display: flex; gap: 8px;">
-                    <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0; font-size:16px;'>RED <span style='font-size:12px; color:#aaa;'>({r_ovr})</span></h4>
-                        {red_html}
-                    </div>
+                    <div style="flex: 1; min-width: 0;"><h4 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0; font-size:16px;'>RED <span style='font-size:12px; color:#aaa;'>({r_ovr})</span></h4>{red_html}</div>
                     <div style="width: 1px; background: rgba(255,255,255,0.1);"></div>
-                    <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#1c83e1; text-align:center; margin:0 0 5px 0; font-size:16px;'>BLUE <span style='font-size:12px; color:#aaa;'>({b_ovr})</span></h4>
-                        {blue_html}
-                    </div>
+                    <div style="flex: 1; min-width: 0;"><h4 style='color:#1c83e1; text-align:center; margin:0 0 5px 0; font-size:16px;'>BLUE <span style='font-size:12px; color:#aaa;'>({b_ovr})</span></h4>{blue_html}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -451,25 +429,18 @@ def run_football_app():
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
-            
             red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]
             blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
 
-            with col_tr_red:
-                st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
-                s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
-            with col_tr_blue:
-                st.markdown(f"<div style='border:2px solid #1c83e1; border-radius:10px; padding:10px; text-align:center; color:#1c83e1; font-weight:bold;'>🔵 FROM BLUE</div>", unsafe_allow_html=True)
-                s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
+            with col_tr_red: s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
+            with col_tr_blue: s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
-                    s_red = s_red_str.rsplit(" (", 1)[0]
-                    s_blue = s_blue_str.rsplit(" (", 1)[0]
+                    s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
-                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
                     
                     r_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
@@ -495,10 +466,8 @@ def run_football_app():
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
-                fill_map = {"DEF": 0, "MID": 1, "FWD": 2, "GK": 3}
-                st.session_state.match_squad['Fill_Ord'] = st.session_state.match_squad['Position'].map(fill_map).fillna(4)
-                reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Fill_Ord')
-                blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Fill_Ord')
+                reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
+                blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 subs_r = []
                 for i, row in enumerate(reds.itertuples()):
@@ -519,26 +488,15 @@ def run_football_app():
                     for s in subs_b: st.markdown(f"- {s}")
                 if not subs_r and not subs_b: st.info("No Subs")
                 
-                # --- RIGHT SIDE SQUAD REVIEW (HTML FLEX) ---
+                # Side-by-Side on Tact Board too
                 red_html = ""; blue_html = ""
-                for _, p in reds.iterrows():
-                     red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:13px;'>{p['Name']}</span><span class='pos-badge' style='font-size:10px;'>{p['Position']}</span></div>"
-                for _, p in blues.iterrows():
-                     blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:13px;'>{p['Name']}</span><span class='pos-badge' style='font-size:10px;'>{p['Position']}</span></div>"
-                
+                for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
+                for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 st.write("---")
-                st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>TEAM SQUADS</h4>", unsafe_allow_html=True)
-                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 st.markdown(f"""
                 <div style="display: flex; gap: 5px; margin-top: 10px;">
-                    <div style="flex: 1; min-width: 0;">
-                        <h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED ({r_ovr})</h6>
-                        {red_html}
-                    </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE ({b_ovr})</h6>
-                        {blue_html}
-                    </div>
+                    <div style="flex: 1; min-width: 0;"><h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED ({r_ovr})</h6>{red_html}</div>
+                    <div style="flex: 1; min-width: 0;"><h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE ({b_ovr})</h6>{blue_html}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
