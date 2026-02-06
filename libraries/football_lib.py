@@ -20,6 +20,7 @@ def get_img_as_base64(file):
 
 def clean_whatsapp_name(text):
     # 1. Remove invisible Unicode characters & Non-breaking spaces (\xa0)
+    # \u2060 is the "Word Joiner" often found in WhatsApp names
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
     # 2. Remove leading numbers and dots/brackets (e.g., "1. ", "10) ")
     text = re.sub(r'^\d+[\.\)]\s*', '', text)
