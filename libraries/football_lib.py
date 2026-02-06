@@ -50,6 +50,7 @@ def toggle_selection(idx):
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         
         # Clear related session keys to force UI refresh for this specific index
+        # This acts as a "hard reset" for the checkbox visual state
         for key in list(st.session_state.keys()):
             if f"chk_{idx}_" in key:
                 del st.session_state[key]
@@ -236,7 +237,6 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     
