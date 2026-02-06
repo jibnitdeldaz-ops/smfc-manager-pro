@@ -126,11 +126,10 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS ---
+# --- 📌 PRESETS (SPACED OUT COORDINATES) ---
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
-        # Spaced out: DEF(10), MID(30), FWD(45) | DEF(90), MID(70), FWD(55)
         "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)],
         "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]
     },
@@ -139,12 +138,21 @@ formation_presets = {
         "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
         "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
     },
-    "6 vs 6": {"limit": 6, "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]},
-    "5 vs 5": {"limit": 5, "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]}
+    "6 vs 6": {
+        "limit": 6,
+        "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]
+    },
+    "5 vs 5": {
+        "limit": 5,
+        "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]
+    }
 }
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
+    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -161,8 +169,6 @@ def run_football_app():
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        
-        /* PLAYER CARD STYLE */
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
@@ -175,6 +181,24 @@ def run_football_app():
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
+        
+        /* MOBILE OPTIMIZATIONS (The Secret Sauce) */
+        @media (max-width: 640px) {
+            /* Force horizontal blocks to STAY horizontal on mobile */
+            div[data-testid="stHorizontalBlock"] {
+                flex-wrap: nowrap !important;
+                overflow-x: auto !important;
+            }
+            /* Allow columns to shrink so 3 can fit */
+            div[data-testid="column"] {
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+            }
+            /* Make text smaller on mobile inputs to fit */
+            .guest-row-label { font-size: 12px !important; }
+            div[data-baseweb="select"] div { font-size: 11px !important; padding: 2px !important; }
+        }
+        
         .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
     </style>
@@ -317,7 +341,7 @@ def run_football_app():
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
 
-            # --- SIDE-BY-SIDE MOBILE VIEW (FLEXBOX) ---
+            # --- MOBILE SIDE-BY-SIDE VIEW (FLEXBOX) ---
             red_html = ""
             for _, p in reds.iterrows():
                 red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
@@ -328,16 +352,14 @@ def run_football_app():
             st.markdown(f"""
             <div class="section-box">
                 <div style="color:#FF5722; font-weight:bold; font-size:18px; margin-bottom: 10px;">LINEUPS</div>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 8px;">
                     <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#ff4b4b; text-align:center; margin:0 0 10px 0;'>RED</h4>
+                        <h4 style='color:#ff4b4b; text-align:center; margin:0 0 10px 0; font-size:16px;'>RED</h4>
                         {red_html}
                     </div>
-                    <div style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
-                        <div style="border-left: 1px solid rgba(255,255,255,0.1); height:100%;"></div>
-                    </div>
+                    <div style="width: 1px; background: rgba(255,255,255,0.1);"></div>
                     <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#1c83e1; text-align:center; margin:0 0 10px 0;'>BLUE</h4>
+                        <h4 style='color:#1c83e1; text-align:center; margin:0 0 10px 0; font-size:16px;'>BLUE</h4>
                         {blue_html}
                     </div>
                 </div>
