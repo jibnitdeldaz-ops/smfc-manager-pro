@@ -126,10 +126,8 @@ def calculate_leaderboard(df_matches, official_names):
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
     
-    # Generate Form String (Last 5)
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
-    
     return res
 
 def calculate_player_score(row):
@@ -193,26 +191,24 @@ def run_football_app():
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
+        /* GOLD AND GREY CLASSES FOR MATCH HISTORY */
+        .neon-gold { color: #FFD700; text-shadow: 0 0 5px #FFD700, 0 0 10px #FFD700; font-weight: 900; }
+        .dull-grey { color: #666; font-weight: 700; opacity: 0.7; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        
+        /* METRICS */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
-        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
-        .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
-        .kit-red { border-left: 4px solid #ff4b4b; }
-        .kit-blue { border-left: 4px solid #1c83e1; }
-        .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
-        .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
-        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
         
-        /* --- ANALYTICS CARD STYLES --- */
+        /* ANALYTICS CARDS */
         .lb-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
             border: 1px solid rgba(255,255,255,0.1);
@@ -236,19 +232,27 @@ def run_football_app():
         .match-card {
             background: rgba(0,0,0,0.3);
             border-radius: 8px;
-            padding: 10px 15px;
+            padding: 12px 18px;
             margin-bottom: 8px;
             border-left: 4px solid #444;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .mc-date { font-size: 12px; color: #888; font-weight: bold; }
-        .mc-score { font-size: 16px; font-weight: 900; color: #fff; }
-        .mc-badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
-        .mc-blue { background: rgba(28, 131, 225, 0.2); color: #1c83e1; border: 1px solid #1c83e1; }
-        .mc-red { background: rgba(255, 75, 75, 0.2); color: #ff4b4b; border: 1px solid #ff4b4b; }
-        .mc-draw { background: rgba(255, 255, 255, 0.1); color: #aaa; border: 1px solid #555; }
+        .mc-date { font-size: 12px; color: #888; font-weight: bold; margin-bottom: 4px; }
+        .mc-score { font-size: 18px; text-transform: uppercase; }
+        
+        .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+        .kit-red { border-left: 4px solid #ff4b4b; }
+        .kit-blue { border-left: 4px solid #1c83e1; }
+        .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+        .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
+        .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
+        .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
+        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
+        .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
+        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -527,18 +531,23 @@ def run_football_app():
             history = df_m.sort_values('Date', ascending=False).head(10)
             
             for _, row in history.iterrows():
-                # Determine Badge Class
-                badge_class = "mc-draw"
-                if row['Winner'] == "Blue": badge_class = "mc-blue"
-                elif row['Winner'] == "Red": badge_class = "mc-red"
+                # Logic for Gold/Grey coloring
+                b_cls, r_cls = "text-white", "text-white"
                 
+                if row['Winner'] == "Blue":
+                    b_cls, r_cls = "neon-gold", "dull-grey"
+                elif row['Winner'] == "Red":
+                    b_cls, r_cls = "dull-grey", "neon-gold"
+                
+                # Render Card
                 st.markdown(f"""
                 <div class='match-card'>
                     <div>
                         <div class='mc-date'>{row['Date']} | {row['Venue']}</div>
-                        <div class='mc-score'>BLUE {row['Score_Blue']} - {row['Score_Red']} RED</div>
+                        <div class='mc-score'>
+                            <span class='{b_cls}'>BLUE {row['Score_Blue']}</span> - <span class='{r_cls}'>{row['Score_Red']} RED</span>
+                        </div>
                     </div>
-                    <div class='mc-badge {badge_class}'>{row['Winner']} WIN</div>
                 </div>
                 """, unsafe_allow_html=True)
             
