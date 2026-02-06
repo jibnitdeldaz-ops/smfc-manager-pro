@@ -138,16 +138,8 @@ formation_presets = {
         "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
         "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
     },
-    "6 vs 6": {
-        "limit": 6,
-        "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)],
-        "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]
-    },
-    "5 vs 5": {
-        "limit": 5,
-        "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)],
-        "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]
-    }
+    "6 vs 6": {"limit": 6, "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]},
+    "5 vs 5": {"limit": 5, "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]}
 }
 
 # --- 🚀 MAIN APP ---
@@ -182,25 +174,28 @@ def run_football_app():
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
         
-        /* MOBILE OPTIMIZATIONS (The Secret Sauce) */
+        .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
+
+        /* --- MOBILE OPTIMIZATIONS (FIXED) --- */
         @media (max-width: 640px) {
-            /* Force horizontal blocks to STAY horizontal on mobile */
+            /* 1. Force horizontal layout for columns */
             div[data-testid="stHorizontalBlock"] {
                 flex-wrap: nowrap !important;
-                overflow-x: auto !important;
+                overflow-x: hidden !important; /* No Scroll */
+                gap: 2px !important; /* Reduce Gap */
             }
-            /* Allow columns to shrink so 3 can fit */
+            /* 2. Allow columns to shrink properly */
             div[data-testid="column"] {
                 min-width: 0 !important;
                 flex: 1 1 auto !important;
+                padding: 0 !important;
             }
-            /* Make text smaller on mobile inputs to fit */
-            .guest-row-label { font-size: 12px !important; }
-            div[data-baseweb="select"] div { font-size: 11px !important; padding: 2px !important; }
+            /* 3. Scale down text in dropdowns/labels */
+            .guest-row-label { font-size: 11px !important; }
+            div[data-baseweb="select"] div { font-size: 10px !important; padding-left: 2px !important; padding-right: 2px !important; }
+            div[data-baseweb="base-input"] input { font-size: 10px !important; }
         }
-        
-        .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -212,6 +207,7 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
@@ -281,7 +277,9 @@ def run_football_app():
             st.write("---")
             st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
             for g_name in guests:
-                c_name, c_pos, c_lvl = st.columns([3, 2, 3])
+                # Optimized columns for mobile: [Name: 3.5, Pos: 1.5, Stars: 2.5]
+                # Squeezes dropdowns to fit on one line
+                c_name, c_pos, c_lvl = st.columns([3.5, 1.5, 2.5])
                 with c_name: st.markdown(f"<div class='guest-row-label'>{g_name}</div>", unsafe_allow_html=True)
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
@@ -290,7 +288,8 @@ def run_football_app():
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
-                c_p_sel, c_p_pos, c_p_btn = st.columns([3, 2, 2])
+                # Optimized columns for Edit: [Player: 3.5, Pos: 2, Btn: 2]
+                c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2])
                 with c_p_sel:
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
                     p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
