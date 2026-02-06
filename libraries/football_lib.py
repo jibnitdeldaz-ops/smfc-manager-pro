@@ -44,6 +44,9 @@ def toggle_selection(player_name):
         idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
         current_val = st.session_state.master_db.at[idx, 'Selected']
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
+        for key in list(st.session_state.keys()):
+            if key.startswith(f"chk_{player_name}_"):
+                del st.session_state[key]
 
 # --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
@@ -205,6 +208,7 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
+        # --- PASTE LOGIC (ROBUST) ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -212,6 +216,7 @@ def run_football_app():
                     st.session_state.master_db['Selected'] = False 
                     new_guests = []
                     found_count = 0
+                    
                     extracted_names = extract_whatsapp_players(whatsapp_text)
                     for clean_line in extracted_names:
                         match = False
@@ -219,12 +224,15 @@ def run_football_app():
                             if clean_name_simple(str(row['Name'])).lower() == clean_name_simple(clean_line).lower():
                                 st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
                         if not match: new_guests.append(clean_line)
+                    
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
+                    
                     st.session_state.checklist_version += 1
-                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
+                    st.toast(f"✅ Found {found_count} players from DB. {len(new_guests)} guests added!")
+                    st.rerun()
                 else: st.error("DB Offline")
 
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
@@ -333,7 +341,10 @@ def run_football_app():
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
-            red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]; blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
+            
+            red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]
+            blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
+
             with col_tr_red:
                 st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
                 s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
@@ -343,14 +354,19 @@ def run_football_app():
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
-                    s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
+                    s_red = s_red_str.rsplit(" (", 1)[0]
+                    s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
+                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
                     st.rerun()
+            
             if st.session_state.transfer_log:
-                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write("")
+                for log in st.session_state.transfer_log:
+                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -388,7 +404,7 @@ def run_football_app():
                     for s in subs_b: st.markdown(f"- {s}")
                 if not subs_r and not subs_b: st.info("No Subs")
                 
-                # --- NEW: RIGHT SIDE SQUAD REVIEW ---
+                # --- RIGHT SIDE SQUAD REVIEW ---
                 st.write("---")
                 st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>TEAM SQUADS</h4>", unsafe_allow_html=True)
                 st.markdown("<div style='color:#ff4b4b; font-weight:bold; margin-top:10px;'>🔴 RED TEAM</div>", unsafe_allow_html=True)
