@@ -29,17 +29,24 @@ def extract_whatsapp_players(text):
 def clean_player_name(text):
     """
     Master Cleaner: Removes brackets, status codes, and extra spaces.
-    Input: "Naveen (T)", "John - Late", "Rob [GK]"
-    Output: "Naveen", "John", "Rob"
+    Input: "Naveen (T)", "John - Late"
+    Output: "Naveen", "John"
     """
-    # 1. Remove (...) or [...] or { ... } or full-width brackets
+    # 1. Explicitly remove (T) or (t) first
+    text = re.sub(r'\s*\([tT]\)', '', text)
+    
+    # 2. Remove any other brackets
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
-    # 2. Remove hyphenated status like " - Late"
+    
+    # 3. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
-    # 3. Remove loose "T" or "G" at the end (e.g. "Naveen T")
+    
+    # 4. Remove loose "T" or "G" at the end (e.g. "Naveen T")
     text = re.sub(r'\s+[tTgG]$', '', text)
-    # 4. Remove common status words if unbracketed
+    
+    # 5. Remove common status words
     text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest|paid)\b.*$', '', text, flags=re.IGNORECASE)
+    
     return text.strip()
 
 def get_guests_list():
@@ -190,7 +197,6 @@ def run_football_app():
             color: white !important;
         }
         
-        /* MOBILE COLUMN OPTIMIZATION */
         @media (max-width: 640px) {
             div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
             div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
@@ -230,6 +236,7 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
@@ -260,7 +267,7 @@ def run_football_app():
                     
                     for line in raw_lines:
                         match = False
-                        # CLEAN INPUT AND DB NAME AGGRESSIVELY
+                        # CLEAN INPUT
                         clean_input = clean_player_name(line).lower()
                         for idx, row in st.session_state.master_db.iterrows():
                             db_name = clean_player_name(str(row['Name'])).lower()
@@ -407,13 +414,25 @@ def run_football_app():
             </div>
             """, unsafe_allow_html=True)
             
+            # --- FIXED COPY TEMPLATE ---
             dt_match = datetime.combine(match_date, match_time)
             dt_end = dt_match + timedelta(minutes=duration)
             str_date = dt_match.strftime('%A, %d %b')
             str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
-            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
-            summary = f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
-            components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
+            
+            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
+            b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
+            
+            summary = (f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\n"
+                       f"Cost per player: *\nGpay: *\nLateFee: 50\n\n"
+                       f"🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n"
+                       f"🔴 *RED TEAM* ({r_ovr})\n{r_list}")
+            
+            components.html(f"""
+            <textarea id="text_to_copy_v2" style="position:absolute; left:-9999px;">{summary}</textarea>
+            <button onclick="var c=document.getElementById('text_to_copy_v2');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" 
+            style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>
+            """, height=70)
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
@@ -439,8 +458,7 @@ def run_football_app():
             
             if st.session_state.transfer_log:
                 st.write("")
-                for log in st.session_state.transfer_log:
-                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
