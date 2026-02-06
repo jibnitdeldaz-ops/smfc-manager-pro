@@ -19,12 +19,12 @@ def get_img_as_base64(file):
     return ""
 
 def clean_whatsapp_name(text):
-    # 1. Remove invisible Unicode characters & Non-breaking spaces (\xa0)
-    # \u2060 is the "Word Joiner" often found in WhatsApp names
+    # 1. Remove invisible Unicode characters (Word Joiner, Zero Width Space, etc.)
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    # 2. Remove leading numbers and dots/brackets (e.g., "1. ", "10) ")
-    text = re.sub(r'^\d+[\.\)]\s*', '', text)
-    # 3. Remove leading/trailing whitespace
+    # 2. Remove leading numbers, dots, brackets, hyphens, and spaces
+    # Example: "10. ⁠krithik" -> "krithik"
+    text = re.sub(r'^[\d\.\)\-\s]+', '', text)
+    # 3. Final trim
     return text.strip()
 
 def get_guests_list():
@@ -217,7 +217,7 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
-        # --- PASTE LOGIC WITH FIXES ---
+        # --- PASTE LOGIC WITH AGGRESSIVE FIXES ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -225,17 +225,23 @@ def run_football_app():
                     st.session_state.master_db['Selected'] = False # Reset
                     
                     new_guests = []
+                    found_count = 0
                     lines = whatsapp_text.split('\n')
+                    
                     for line in lines:
                         clean_line = clean_whatsapp_name(line)
                         if len(clean_line) < 2: continue
                         
                         match = False
                         for idx, row in st.session_state.master_db.iterrows():
-                            # Case insensitive compare
-                            if clean_whatsapp_name(str(row['Name'])).lower() == clean_line.lower():
+                            # CLEAN BOTH SIDES FOR COMPARISON (Handles SANIL vs Sanil)
+                            db_name = str(row['Name']).strip().lower()
+                            input_name = clean_line.lower()
+                            
+                            if db_name == input_name:
                                 st.session_state.master_db.at[idx, 'Selected'] = True
                                 match = True
+                                found_count += 1
                                 break
                         if not match: new_guests.append(clean_line)
                     
@@ -245,12 +251,12 @@ def run_football_app():
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
                     
-                    # --- CRITICAL FIX: RESET CHECKBOX WIDGET STATE ---
-                    # Delete session keys for checkboxes so they re-initialize from DB
+                    # --- CRITICAL: RESET CHECKBOXES ---
                     for key in list(st.session_state.keys()):
                         if key.startswith("chk_"):
                             del st.session_state[key]
                             
+                    st.toast(f"✅ Selected {found_count} players from list!")
                     st.rerun()
                 else: st.error("DB Offline")
 
@@ -260,7 +266,6 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
-                # Checkbox uses DB value as default
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}_{t_n}", on_change=toggle_selection, args=(row['Name'],))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
