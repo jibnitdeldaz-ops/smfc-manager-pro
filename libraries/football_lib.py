@@ -48,9 +48,6 @@ def toggle_selection(idx):
         
         # --- THE NUCLEAR FIX ---
         # Increment a global version counter.
-        # This changes the 'key' of every checkbox widget in the app.
-        # Streamlit treats them as brand new widgets and reloads their 
-        # state strictly from the database, eliminating "stale" ticks.
         if 'ui_version' not in st.session_state:
             st.session_state.ui_version = 0
         st.session_state.ui_version += 1
@@ -200,6 +197,7 @@ def run_football_app():
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
@@ -229,7 +227,9 @@ def run_football_app():
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
     with tab1:
+        # FIX: Calculate counts BEFORE displaying them
         smfc_n, guest_n, total_n = get_counts()
+        
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
@@ -272,8 +272,6 @@ def run_football_app():
         with pos_tabs[3]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'DEF'], "def")
         st.write(""); st.text_input("Guests (Comma separated)", key="guest_input_val"); st.markdown('</div>', unsafe_allow_html=True)
 
-        # ... (Rest of Tab 1, 2, 3, 4 logic remains same, just ensuring indent)
-        # Tab 1: Match Settings
         with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
             match_date = c1.date_input("Match Date", datetime.today(), key="match_date_input")
@@ -283,7 +281,6 @@ def run_football_app():
             duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider")
             st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"], key="fmt_select")
 
-        # Tab 1: Guest Squad
         guests = get_guests_list()
         if guests:
             st.write("---"); st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
@@ -294,7 +291,6 @@ def run_football_app():
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
 
-        # Tab 1: Edit Pos
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
