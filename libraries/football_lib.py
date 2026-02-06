@@ -40,8 +40,7 @@ def toggle_selection(idx):
     if 'Selected' in st.session_state.master_db.columns:
         current_val = bool(st.session_state.master_db.at[idx, 'Selected'])
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
-        if 'ui_version' not in st.session_state:
-            st.session_state.ui_version = 0
+        if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
 # --- 🧠 ANALYTICS & PARSING ---
@@ -106,6 +105,7 @@ def calculate_leaderboard(df_matches, official_names):
         winner = row['Winner']
         blue_team = [x.strip() for x in str(row['Team_Blue']).split(',') if x.strip()]
         red_team = [x.strip() for x in str(row['Team_Red']).split(',') if x.strip()]
+        
         def update(player_name, team_color):
             if player_name not in official_names: return
             if player_name not in stats: stats[player_name] = {'M': 0, 'W': 0, 'L': 0, 'D': 0, 'Form': []}
@@ -115,16 +115,21 @@ def calculate_leaderboard(df_matches, official_names):
             elif winner == 'Draw': p['D'] += 1; res='D'
             else: p['L'] += 1; res='L'
             p['Form'].append(res)
+            
         for p in blue_team: update(p, 'Blue')
         for p in red_team: update(p, 'Red')
+        
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
     res['Win %'] = ((res['W'] / res['M']) * 100).fillna(0).round(0).astype(int)
     res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
+    
+    # Generate Form String (Last 5)
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
-    res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
+    res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
+    
     return res
 
 def calculate_player_score(row):
@@ -171,23 +176,24 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- 1. CRITICAL INITIALIZATION (MUST BE FIRST) ---
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
-    if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
+    if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
 
-    # --- 2. GLOBAL CSS ---
+    # --- GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
+        
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
+
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
@@ -205,17 +211,53 @@ def run_football_app():
         .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
+        
+        /* --- ANALYTICS CARD STYLES --- */
+        .lb-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-left: 4px solid #FF5722;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s;
+        }
+        .lb-card:hover { transform: translateX(5px); background: rgba(255,255,255,0.08); }
+        .lb-rank { font-size: 24px; font-weight: 900; color: #FF5722; width: 40px; }
+        .lb-info { flex-grow: 1; padding-left: 10px; }
+        .lb-name { font-size: 18px; font-weight: 800; color: #fff; text-transform: uppercase; }
+        .lb-stats { font-size: 12px; color: #bbb; margin-top: 2px; }
+        .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
+        .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
+        
+        .match-card {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 10px 15px;
+            margin-bottom: 8px;
+            border-left: 4px solid #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .mc-date { font-size: 12px; color: #888; font-weight: bold; }
+        .mc-score { font-size: 16px; font-weight: 900; color: #fff; }
+        .mc-badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .mc-blue { background: rgba(28, 131, 225, 0.2); color: #1c83e1; border: 1px solid #1c83e1; }
+        .mc-red { background: rgba(255, 75, 75, 0.2); color: #ff4b4b; border: 1px solid #ff4b4b; }
+        .mc-draw { background: rgba(255, 255, 255, 0.1); color: #aaa; border: 1px solid #555; }
     </style>
     """, unsafe_allow_html=True)
 
-    # --- 3. DATA LOADING ---
     if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
         conn, df_p, df_m = load_data()
         st.session_state.conn = conn; st.session_state.master_db = df_p; st.session_state.match_db = df_m
     else:
         if 'conn' not in st.session_state: conn, df_p, df_m = load_data(); st.session_state.conn = conn
 
-    # --- 4. HEADER ---
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
@@ -451,7 +493,10 @@ def run_football_app():
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
             lb = calculate_leaderboard(df_m, official_names)
+            
+            # --- LEADERBOARD CARDS ---
             if not lb.empty:
+                # Spotlight Top 3 (Simplified for brevity, standard card loop below)
                 max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
@@ -459,8 +504,43 @@ def run_football_app():
                 with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
                 with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
                 with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
+                
                 st.write("---")
-                for p, r in lb.iterrows(): st.markdown(f"<div class='lb-card'><div style='font-size:20px; font-weight:900; color:#FF5722'>#{r['Rank']}</div><div><span style='font-size:18px; font-weight:800; color:#fff'>{p}</span><br><span style='font-size:13px; color:#888'>{r['M']} Matches • {r['W']} Wins</span></div><div class='lb-winrate'>{r['Win %']}%</div></div>", unsafe_allow_html=True)
+                
+                # Render Full Leaderboard Cards
+                for p, r in lb.iterrows(): 
+                    st.markdown(f"""
+                    <div class='lb-card'>
+                        <div class='lb-rank'>#{r['Rank']}</div>
+                        <div class='lb-info'>
+                            <div class='lb-name'>{p}</div>
+                            <div class='lb-stats'>{r['M']} Matches • {r['W']} Wins</div>
+                        </div>
+                        <div class='lb-form'>{r['Form_Icons']}</div>
+                        <div class='lb-winrate'>{r['Win %']}%</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # --- MATCH HISTORY VISUALS ---
+            st.write("---")
+            st.markdown("<h4 class='neon-white'>RECENT MATCHES</h4>", unsafe_allow_html=True)
+            history = df_m.sort_values('Date', ascending=False).head(10)
+            
+            for _, row in history.iterrows():
+                # Determine Badge Class
+                badge_class = "mc-draw"
+                if row['Winner'] == "Blue": badge_class = "mc-blue"
+                elif row['Winner'] == "Red": badge_class = "mc-red"
+                
+                st.markdown(f"""
+                <div class='match-card'>
+                    <div>
+                        <div class='mc-date'>{row['Date']} | {row['Venue']}</div>
+                        <div class='mc-score'>BLUE {row['Score_Blue']} - {row['Score_Red']} RED</div>
+                    </div>
+                    <div class='mc-badge {badge_class}'>{row['Winner']} WIN</div>
+                </div>
+                """, unsafe_allow_html=True)
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
