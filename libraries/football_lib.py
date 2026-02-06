@@ -126,24 +126,31 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (UPDATED COORDINATES) ---
+# --- 📌 PRESETS (SPACED OUT COORDINATES) ---
+# Logic: Defenders deeper (10/90), Mids spaced (30/70), FWDs safe (45/55)
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
-        # FWDs moved from 55 to 48 (onside)
-        "RED_COORDS": [(15, 20), (15, 50), (15, 80), (35, 15), (35, 38), (35, 62), (35, 85), (48, 35), (48, 65)],
-        # FWDs moved from 45 to 52 (onside)
-        "BLUE_COORDS": [(85, 20), (85, 50), (85, 80), (65, 15), (65, 38), (65, 62), (65, 85), (52, 35), (52, 65)]
+        # RED: DEF(10), MID(30), FWD(45)
+        "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)],
+        # BLUE: DEF(90), MID(70), FWD(55)
+        "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]
     },
     "7 vs 7": {
         "limit": 7,
-        # FWDs moved from 55 to 48
-        "RED_COORDS": [(15, 30), (15, 70), (35, 20), (35, 50), (35, 80), (48, 35), (48, 65)],
-        # FWDs moved from 45 to 52
-        "BLUE_COORDS": [(85, 30), (85, 70), (65, 20), (65, 50), (65, 80), (52, 35), (52, 65)]
+        "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
     },
-    "6 vs 6": {"limit": 6, "RED_COORDS": [(15, 30), (15, 70), (35, 30), (35, 70), (55, 35), (55, 65)], "BLUE_COORDS": [(85, 30), (85, 70), (65, 30), (65, 70), (45, 35), (45, 65)]},
-    "5 vs 5": {"limit": 5, "RED_COORDS": [(15, 30), (15, 70), (35, 50), (50, 30), (50, 70)], "BLUE_COORDS": [(85, 30), (85, 70), (65, 50), (50, 30), (50, 70)]}
+    "6 vs 6": {
+        "limit": 6,
+        "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]
+    },
+    "5 vs 5": {
+        "limit": 5,
+        "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]
+    }
 }
 
 # --- 🚀 MAIN APP ---
@@ -208,7 +215,6 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
-        # --- PASTE LOGIC (ROBUST) ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -231,7 +237,7 @@ def run_football_app():
                     st.session_state.guest_input_val = ", ".join(current)
                     
                     st.session_state.checklist_version += 1
-                    st.toast(f"✅ Found {found_count} players from DB. {len(new_guests)} guests added!")
+                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!")
                     st.rerun()
                 else: st.error("DB Offline")
 
