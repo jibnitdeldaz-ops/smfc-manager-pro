@@ -23,15 +23,10 @@ def clean_player_name(text):
     Master Cleaner: Removes brackets, status codes, and extra spaces.
     Input: "Naveen (T)", "John - Late" -> Output: "Naveen", "John"
     """
-    # 1. Explicitly remove (T) or (t)
     text = re.sub(r'\s*\([tT]\)', '', text)
-    # 2. Remove any other brackets (...) or [...]
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
-    # 3. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
-    # 4. Remove loose "T" or "G" at the end
     text = re.sub(r'\s+[tTgG]$', '', text)
-    # 5. Remove common status words
     text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest|paid)\b.*$', '', text, flags=re.IGNORECASE)
     return text.strip()
 
@@ -58,64 +53,35 @@ def toggle_selection(player_name):
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
-    """
-    Parses WhatsApp match summary.
-    Auto-formats Date to YYYY-MM-DD for database consistency.
-    """
     data = {
         "Date": datetime.today().strftime('%Y-%m-%d'),
-        "Time": "00:00",
-        "Venue": "BFC",
-        "Score_Blue": 0,
-        "Score_Red": 0,
-        "Winner": "Draw",
-        "Team_Blue": "",
-        "Team_Red": "",
-        "Cost": 0,
-        "Gpay": "",
-        "LateFee": 0
+        "Time": "00:00", "Venue": "BFC",
+        "Score_Blue": 0, "Score_Red": 0, "Winner": "Draw",
+        "Team_Blue": "", "Team_Red": ""
     }
-    
     try:
-        # 1. Date Extraction & Formatting (e.g., "Saturday, 07 Feb" -> "2025-02-07")
+        # Date Parsing
         date_match = re.search(r'Date:\s*(.*)', text, re.IGNORECASE)
         if date_match: 
             raw_date = date_match.group(1).strip()
             try:
-                # Remove day name if comma exists (e.g., "Saturday, 07 Feb" -> "07 Feb")
-                if ',' in raw_date:
-                    clean_date_str = raw_date.split(',', 1)[1].strip()
-                else:
-                    clean_date_str = raw_date
-                
-                # Parse "07 Feb"
+                if ',' in raw_date: clean_date_str = raw_date.split(',', 1)[1].strip()
+                else: clean_date_str = raw_date
                 dt_obj = datetime.strptime(clean_date_str, "%d %b")
-                # Apply current year
                 dt_obj = dt_obj.replace(year=datetime.now().year)
                 data['Date'] = dt_obj.strftime("%Y-%m-%d")
-            except:
-                # Fallback to raw string if parsing fails
-                data['Date'] = raw_date
+            except: data['Date'] = raw_date
         
         time_match = re.search(r'Time:\s*(.*)', text, re.IGNORECASE)
         if time_match: data['Time'] = time_match.group(1).strip()
-        
         venue_match = re.search(r'(?:Ground|Venue):\s*(.*)', text, re.IGNORECASE)
         if venue_match: data['Venue'] = venue_match.group(1).strip()
         
-        cost_match = re.search(r'Cost.*:\s*(\*|\d+)', text, re.IGNORECASE)
-        if cost_match and cost_match.group(1).isdigit(): data['Cost'] = int(cost_match.group(1))
-        
-        late_match = re.search(r'LateFee:\s*(\d+)', text, re.IGNORECASE)
-        if late_match: data['LateFee'] = int(late_match.group(1))
-
-        # Scores (Blue 5-4 Red)
+        # Scores
         score_match = re.search(r'Score:.*?Blue\s*(\d+)\s*[-v]\s*(\d+)\s*Red', text, re.IGNORECASE)
         if score_match:
             data['Score_Blue'] = int(score_match.group(1))
             data['Score_Red'] = int(score_match.group(2))
-            
-            # Auto-calculate Winner logic
             if data['Score_Blue'] > data['Score_Red']: data['Winner'] = "Blue"
             elif data['Score_Red'] > data['Score_Blue']: data['Winner'] = "Red"
             else: data['Winner'] = "Draw"
@@ -124,7 +90,6 @@ def parse_match_log(text):
         clean_text = text.replace('*', '')
         blue_start = re.search(r'🔵.*?BLUE TEAM', clean_text, re.IGNORECASE)
         red_start = re.search(r'🔴.*?RED TEAM', clean_text, re.IGNORECASE)
-        
         if blue_start and red_start:
             if blue_start.start() < red_start.start():
                 blue_block = clean_text[blue_start.end():red_start.start()]
@@ -132,22 +97,16 @@ def parse_match_log(text):
             else:
                 red_block = clean_text[red_start.end():blue_start.start()]
                 blue_block = clean_text[blue_start.end():]
-            
             def get_names(block):
                 names = []
                 for line in block.split('\n'):
                     line = line.strip()
-                    # Filter out headers/scores inside the block
                     if len(line) > 2 and not line.lower().startswith("we had") and not any(char.isdigit() for char in line):
                         names.append(clean_player_name(line))
                 return ", ".join(names)
-
             data['Team_Blue'] = get_names(blue_block)
             data['Team_Red'] = get_names(red_block)
-            
-    except Exception as e:
-        print(f"Parsing Error: {e}")
-        
+    except Exception as e: print(f"Parsing Error: {e}")
     return data
 
 def calculate_leaderboard(df_matches, official_names):
@@ -190,17 +149,11 @@ def calculate_player_score(row):
         except: stats[k] = 70.0
 
     pos = row.get('Position', 'MID')
-    
-    if pos == 'FWD':
-        weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
-    elif pos == 'DEF':
-        weighted_avg = (stats['DEF']*0.35 + stats['PHY']*0.25 + stats['PAC']*0.15 + stats['PAS']*0.15 + stats['DRI']*0.05 + stats['SHO']*0.05)
-    else: 
-        weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
-
+    if pos == 'FWD': weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
+    elif pos == 'DEF': weighted_avg = (stats['DEF']*0.35 + stats['PHY']*0.25 + stats['PAC']*0.15 + stats['PAS']*0.15 + stats['DRI']*0.05 + stats['SHO']*0.05)
+    else: weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
     try: star_r = float(row.get('StarRating', 3))
     except: star_r = 3.0
-    
     star_score = 45 + (star_r * 10)
     return round((weighted_avg * 0.6) + (star_score * 0.4), 1)
 
@@ -209,7 +162,6 @@ def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
-        # Suppress loading spinner text
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
@@ -230,34 +182,29 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- GLOBAL CSS (White inputs for readability) ---
+    # --- GLOBAL CSS (Neon & Readability) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* WHITE INPUTS FOR READABILITY */
-        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            border-radius: 5px !important;
-        }
-        div[data-baseweb="base-input"] input {
-            color: #000000 !important;
-            -webkit-text-fill-color: #000000 !important;
-            font-weight: bold !important;
-        }
-        div[data-baseweb="select"] div {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-        }
-        
-        @media (max-width: 640px) {
-            div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
-            div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
-        }
+        /* --- NEON TYPOGRAPHY CLASSES --- */
+        .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
+        .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
+        .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
 
-        div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
+        /* --- READABILITY FIXES (White Inputs) --- */
+        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] {
+            background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important;
+        }
+        div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
+        div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
+        @media (max-width: 640px) { div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; } }
+
+        /* --- DEFAULT NEON WHITE LABELS --- */
+        div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        
+        /* --- METRICS & CARDS --- */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
@@ -512,7 +459,6 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
-                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -556,25 +502,33 @@ def run_football_app():
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
                     
-                    # 1. READABLE WHITE INPUTS
-                    st.markdown("<div style='color:#FFD700; font-weight:bold; margin-bottom:5px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
+                    # Main heading (Neon White)
+                    st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
+
                     c_d, c_t, c_v = st.columns(3)
+                    # Standard labels pick up neon-white CSS
                     new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
                     
                     c_s1, c_s2 = st.columns(2)
-                    new_score_b = c_s1.number_input("Blue Score", value=pm['Score_Blue'])
-                    new_score_r = c_s2.number_input("Red Score", value=pm['Score_Red'])
+                    # Custom Neon Labels for Scores
+                    with c_s1:
+                        st.markdown("<div class='neon-blue'>BLUE SCORE</div>", unsafe_allow_html=True)
+                        new_score_b = st.number_input("Blue Score", value=pm['Score_Blue'], label_visibility="collapsed")
+                    with c_s2:
+                        st.markdown("<div class='neon-red'>RED SCORE</div>", unsafe_allow_html=True)
+                        new_score_r = st.number_input("Red Score", value=pm['Score_Red'], label_visibility="collapsed")
                     
-                    new_blue = st.text_area("Blue Team (Comma Sep)", pm['Team_Blue'])
-                    new_red = st.text_area("Red Team (Comma Sep)", pm['Team_Red'])
+                    # Custom Neon Labels for Teams
+                    st.markdown("<div class='neon-blue' style='margin-top:10px;'>BLUE TEAM LIST</div>", unsafe_allow_html=True)
+                    new_blue = st.text_area("Blue Team", pm['Team_Blue'], label_visibility="collapsed")
+
+                    st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
+                    new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
-                    # Cost fields kept for display but NOT saved to DB
-                    c_cost, c_late = st.columns(2)
-                    new_cost = c_cost.number_input("Cost", value=pm.get('Cost', 0))
-                    new_late = c_late.number_input("Late Fee", value=pm.get('LateFee', 0))
-                    
+                    # Cost/Late Fee Removed
+
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
                         # SECURE PASSWORD CHECK
