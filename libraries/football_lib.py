@@ -4,30 +4,34 @@ import numpy as np
 from streamlit_gsheets import GSheetsConnection
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta
+from datetime import datetime
 import streamlit.components.v1 as components
 import re
 import os
 import base64
 
 # --- 🧮 HELPER FUNCTIONS ---
-def get_img_as_base64(file):
-    if os.path.exists(file):
-        with open(file, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    return ""
-
 def extract_whatsapp_players(text):
+    # Normalize invisible characters
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
+    # Extract lines starting with Number + Dot/Bracket
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
 def clean_player_name(text):
+    """
+    Master Cleaner: Removes brackets, status codes, and extra spaces.
+    Input: "Naveen (T)", "John - Late" -> Output: "Naveen", "John"
+    """
+    # 1. Explicitly remove (T) or (t)
     text = re.sub(r'\s*\([tT]\)', '', text)
+    # 2. Remove any other brackets (...) or [...]
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
+    # 3. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
+    # 4. Remove loose "T" or "G" at the end
     text = re.sub(r'\s+[tTgG]$', '', text)
+    # 5. Remove common status words
     text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest|paid)\b.*$', '', text, flags=re.IGNORECASE)
     return text.strip()
 
@@ -99,6 +103,12 @@ def parse_match_log(text):
         venue_match = re.search(r'(?:Ground|Venue):\s*(.*)', text, re.IGNORECASE)
         if venue_match: data['Venue'] = venue_match.group(1).strip()
         
+        cost_match = re.search(r'Cost.*:\s*(\*|\d+)', text, re.IGNORECASE)
+        if cost_match and cost_match.group(1).isdigit(): data['Cost'] = int(cost_match.group(1))
+        
+        late_match = re.search(r'LateFee:\s*(\d+)', text, re.IGNORECASE)
+        if late_match: data['LateFee'] = int(late_match.group(1))
+
         # Scores (Blue 5-4 Red)
         score_match = re.search(r'Score:.*?Blue\s*(\d+)\s*[-v]\s*(\d+)\s*Red', text, re.IGNORECASE)
         if score_match:
@@ -199,6 +209,7 @@ def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # Suppress loading spinner text
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
@@ -219,7 +230,7 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- GLOBAL CSS (White inputs for better visibility) ---
+    # --- GLOBAL CSS (White inputs for readability) ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -377,7 +388,8 @@ def run_football_app():
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 if st.session_state.position_changes:
-                    st.write(""); for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
+                    st.write(""); 
+                    for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
 
         st.write(""); 
@@ -462,7 +474,8 @@ def run_football_app():
                     st.session_state.red_ovr = int(r_p['Power'].mean()); st.session_state.blue_ovr = int(b_p['Power'].mean())
                     st.rerun()
             if st.session_state.transfer_log:
-                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write(""); 
+                for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -499,6 +512,7 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
+                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -556,7 +570,7 @@ def run_football_app():
                     new_blue = st.text_area("Blue Team (Comma Sep)", pm['Team_Blue'])
                     new_red = st.text_area("Red Team (Comma Sep)", pm['Team_Red'])
                     
-                    # Cost fields kept for display but NOT saved
+                    # Cost fields kept for display but NOT saved to DB
                     c_cost, c_late = st.columns(2)
                     new_cost = c_cost.number_input("Cost", value=pm.get('Cost', 0))
                     new_late = c_late.number_input("Late Fee", value=pm.get('LateFee', 0))
@@ -567,7 +581,7 @@ def run_football_app():
                         try:
                             admin_pw = st.secrets["passwords"]["admin"]
                         except:
-                            admin_pw = "1234" # Fallback
+                            admin_pw = "1234" # Fallback if secrets missing locally
                             
                         if save_pass == admin_pw:
                             # 2. SAVE ONLY CORE FIELDS (No Time/Cost/LateFee)
@@ -592,7 +606,8 @@ def run_football_app():
                                 st.error(f"Failed to save: {e}")
                         else:
                             st.error("Wrong Password")
-with tab4:
+
+    with tab4:
         # 🔒 SECURE DATABASE VIEW
         # 1. Try to get password from secrets
         try:
