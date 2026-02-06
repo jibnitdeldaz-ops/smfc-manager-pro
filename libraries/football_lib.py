@@ -161,6 +161,7 @@ def run_football_app():
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
         .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -172,9 +173,14 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    # --- NEW: Change Log ---
+    if 'position_changes' not in st.session_state: st.session_state.position_changes = []
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
-    if st.sidebar.button("🔄 Refresh Data"): st.session_state.pop('master_db', None); st.rerun()
+    if st.sidebar.button("🔄 Refresh Data"): 
+        st.session_state.pop('master_db', None)
+        st.session_state.position_changes = [] # Reset log on refresh
+        st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
@@ -243,31 +249,38 @@ def run_football_app():
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
 
-        # --- NEW: EDIT PLAYER POSITIONS (SESSION ONLY) ---
-        with st.expander("🛠️ EDIT PLAYER POSITIONS (Session Only)", expanded=False):
-            # Only list players who are selected
+        # --- TWEAK POSITIONS (LOGGING + BUG FIX) ---
+        with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
                 c_p_sel, c_p_pos, c_p_btn = st.columns([3, 2, 2])
                 with c_p_sel:
-                    # Dropdown of name (Current Pos)
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
                     p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
                 with c_p_pos:
                     new_pos = st.selectbox("New Position", ["FWD", "MID", "DEF", "GK"], key="edit_pos_new")
                 with c_p_btn:
-                    st.write("") # Spacer
-                    st.write("")
+                    st.write(""); st.write("")
                     if st.button("UPDATE POS", key="btn_update_pos"):
-                        # Extract name
                         p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
-                        # Update DB in Session State
+                        # Find and update
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
+                        old_pos = st.session_state.master_db.at[idx, 'Position']
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
-                        st.toast(f"✅ Updated {p_name_clean} to {new_pos}")
+                        # FIX: Ensure player remains selected
+                        st.session_state.master_db.at[idx, 'Selected'] = True 
+                        
+                        # Add to log
+                        st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
+                
+                # SHOW CHANGE LOG
+                if st.session_state.position_changes:
+                    st.write("")
+                    for change in st.session_state.position_changes:
+                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else:
-                st.info("Select players first to edit their positions.")
+                st.info("Select players first.")
 
         st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
@@ -314,7 +327,6 @@ def run_football_app():
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
             
-            # Helper to create "Name (POS)" strings
             red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]
             blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
 
@@ -327,10 +339,8 @@ def run_football_app():
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
-                    # Extract clean name by splitting at the last " ("
                     s_red = s_red_str.rsplit(" (", 1)[0]
                     s_blue = s_blue_str.rsplit(" (", 1)[0]
-                    
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
