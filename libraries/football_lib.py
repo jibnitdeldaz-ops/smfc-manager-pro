@@ -144,6 +144,7 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
+    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -157,7 +158,8 @@ def run_football_app():
             color: white !important;
         }
         
-        /* MOBILE COLUMN FIX: Allow columns to shrink to fit side-by-side */
+        /* MOBILE COLUMN OPTIMIZATION (Safe Version) */
+        /* This allows columns to fit side-by-side if possible, but doesn't force bad scaling */
         @media (max-width: 640px) {
             div[data-testid="column"] {
                 min-width: 0 !important;
@@ -165,9 +167,8 @@ def run_football_app():
                 padding-left: 2px !important;
                 padding-right: 2px !important;
             }
-            /* Shrink dropdown text to fit in small boxes */
-            div[data-baseweb="select"] div { font-size: 11px !important; padding: 0px 4px !important; }
-            .guest-row-label { font-size: 12px !important; }
+            /* Reduce padding inside dropdowns to save width, but keep font normal */
+            div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
         }
 
         textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
@@ -281,8 +282,8 @@ def run_football_app():
             st.write("---")
             st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
             for g_name in guests:
-                # Optimized columns: [Name(4), Pos(2), Stars(3)] to fit side-by-side
-                c_name, c_pos, c_lvl = st.columns([4, 2, 3])
+                # [Name(3.5), Pos(2), Stars(2.5)] - Good balance for mobile
+                c_name, c_pos, c_lvl = st.columns([3.5, 2, 2.5])
                 with c_name: st.markdown(f"<div class='guest-row-label'>{g_name}</div>", unsafe_allow_html=True)
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
@@ -291,8 +292,8 @@ def run_football_app():
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
-                # Optimized columns: [Player(4), New Pos(2), Button(3)]
-                c_p_sel, c_p_pos, c_p_btn = st.columns([4, 2, 3])
+                # [Player(3.5), Pos(2), Btn(2.5)]
+                c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2.5])
                 with c_p_sel:
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
                     p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
