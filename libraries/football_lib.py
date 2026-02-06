@@ -149,33 +149,11 @@ def run_football_app():
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
-        
-        /* UPDATED PLAYER CARD - SPACE BETWEEN NAME & POS */
-        .player-card { 
-            background: linear-gradient(90deg, #1a1f26, #121212); 
-            border: 1px solid rgba(255,255,255,0.1); 
-            border-radius: 8px; 
-            padding: 8px 12px; 
-            margin-bottom: 6px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; /* Pushes Pos to right */
-        }
+        .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
-        
-        /* POS BADGE STYLE */
-        .pos-badge {
-            font-size: 11px;
-            font-weight: 900;
-            background: rgba(255,255,255,0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: #ccc;
-            text-transform: uppercase;
-        }
-
+        .pos-badge { font-size: 11px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
@@ -287,7 +265,6 @@ def run_football_app():
             else: st.error("Database offline.")
 
         if not st.session_state.match_squad.empty:
-            # --- SORTED LINEUPS LOGIC ---
             pos_map = {"GK": 0, "DEF": 1, "MID": 2, "FWD": 3}
             st.session_state.match_squad['Pos_Ord'] = st.session_state.match_squad['Position'].map(pos_map).fillna(4)
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
@@ -308,20 +285,32 @@ def run_football_app():
             summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
+            # --- TRANSFER WINDOW UPDATED ---
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
+            
+            # Helper to create "Name (POS)" strings
+            red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]
+            blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
+
             with col_tr_red:
                 st.markdown(f"<div style='border:2px solid #ff4b4b; border-radius:10px; padding:10px; text-align:center; color:#ff4b4b; font-weight:bold;'>🔴 FROM RED</div>", unsafe_allow_html=True)
-                s_red = st.selectbox("Select Red", reds["Name"], key="sel_red", label_visibility="collapsed")
+                s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
             with col_tr_blue:
                 st.markdown(f"<div style='border:2px solid #1c83e1; border-radius:10px; padding:10px; text-align:center; color:#1c83e1; font-weight:bold;'>🔵 FROM BLUE</div>", unsafe_allow_html=True)
-                s_blue = st.selectbox("Select Blue", blues["Name"], key="sel_blue", label_visibility="collapsed")
+                s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
+                    # Extract clean name by splitting at the last " ("
+                    s_red = s_red_str.rsplit(" (", 1)[0]
+                    s_blue = s_blue_str.rsplit(" (", 1)[0]
+                    
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"; st.rerun()
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
+                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
+                    st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -335,12 +324,8 @@ def run_football_app():
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
-                # SORT for Force Fill logic: GK -> FWD -> MID -> DEF (Fill important spots first? Or DEF first?)
-                # Actually for Force Fill, if we want to fill 3 DEF spots, we should put DEFs first.
-                # Let's sort by position priority: DEF -> MID -> FWD
                 fill_map = {"DEF": 0, "MID": 1, "FWD": 2, "GK": 3}
                 st.session_state.match_squad['Fill_Ord'] = st.session_state.match_squad['Position'].map(fill_map).fillna(4)
-                
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Fill_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Fill_Ord')
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
