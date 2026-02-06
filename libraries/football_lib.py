@@ -19,8 +19,11 @@ def get_img_as_base64(file):
     return ""
 
 def clean_whatsapp_name(text):
-    text = text.replace('\u200b', '').replace('\u2060', '').replace('\ufeff', '')
+    # 1. Remove invisible Unicode characters (common in WhatsApp)
+    text = re.sub(r'[\u200b\u2060\ufeff]', '', text)
+    # 2. Remove leading numbers and dots (e.g., "1. ", "10. ")
     text = re.sub(r'^\d+[\.\)]\s*', '', text)
+    # 3. Remove leading/trailing whitespace
     return text.strip()
 
 def get_guests_list():
@@ -119,22 +122,12 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (CORRECTED: 3 DEF, 4 MID, 2 FWD) ---
+# --- 📌 PRESETS (3-4-2) ---
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
-        # RED (Left Side): 3-4-2
-        "RED_COORDS": [
-            (15, 20), (15, 50), (15, 80),        # 3 DEF
-            (35, 15), (35, 38), (35, 62), (35, 85), # 4 MID
-            (55, 35), (55, 65)                   # 2 FWD
-        ],
-        # BLUE (Right Side): 3-4-2
-        "BLUE_COORDS": [
-            (85, 20), (85, 50), (85, 80),        # 3 DEF
-            (65, 15), (65, 38), (65, 62), (65, 85), # 4 MID
-            (45, 35), (45, 65)                   # 2 FWD
-        ]
+        "RED_COORDS": [(15, 20), (15, 50), (15, 80), (35, 15), (35, 38), (35, 62), (35, 85), (55, 35), (55, 65)],
+        "BLUE_COORDS": [(85, 20), (85, 50), (85, 80), (65, 15), (65, 38), (65, 62), (65, 85), (45, 35), (45, 65)]
     },
     "7 vs 7": {
         "limit": 7,
@@ -155,18 +148,30 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS: THE FINAL POLISH ---
+    # --- CSS: VIBE + READABILITY FIXES ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* INPUTS */
-        input, textarea { color: #ffffff !important; }
-        div[data-baseweb="input"] > div, div[data-baseweb="textarea"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {
+        /* 1. INPUTS (DEFAULT DARK THEME) */
+        input { color: #ffffff !important; }
+        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {
              background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important;
         }
         
+        /* 2. TEXTAREA (SPECIAL: BLACK TEXT ON WHITE BG for COPY/PASTE) */
+        textarea {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-weight: bold !important;
+            border-radius: 8px !important;
+        }
+        div[data-baseweb="textarea"] > div {
+            background-color: #ffffff !important;
+            border: 1px solid #ccc !important;
+        }
+
         /* LABELS */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
 
@@ -174,7 +179,7 @@ def run_football_app():
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
 
-        /* COMPONENTS */
+        /* BADGES */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
@@ -184,11 +189,9 @@ def run_football_app():
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 15px; font-weight: 700; color: white !important; }
-        
-        /* ANALYTICS */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
-        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
+        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
@@ -215,22 +218,38 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
+        # PASTE AREA (White BG, Black Text)
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
-            whatsapp_text = st.text_area("List:", height=100, label_visibility="collapsed")
+            whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here (1. Name...)")
             if st.button("Select Players", key="btn_select"):
                 if 'Selected' in st.session_state.master_db.columns:
                     st.session_state.master_db['Selected'] = False
                     new_guests = []
-                    for line in whatsapp_text.split('\n'):
-                        if not re.match(r'^\d+', line.strip()): continue
-                        clean_name = clean_whatsapp_name(line)
-                        if len(clean_name) < 2: continue
+                    lines = whatsapp_text.split('\n')
+                    for line in lines:
+                        # Clean the line using the enhanced function
+                        clean_line = clean_whatsapp_name(line)
+                        if len(clean_line) < 2: continue # Skip empty or super short lines
+                        
                         match = False
+                        # Try to find match in DB (Case Insensitive)
                         for idx, row in st.session_state.master_db.iterrows():
-                            if clean_whatsapp_name(str(row['Name'])).lower() == clean_name.lower():
-                                st.session_state.master_db.at[idx, 'Selected'] = True; match = True; break
-                        if not match: new_guests.append(clean_name)
-                    st.session_state.guest_input_val = ", ".join(list(set(get_guests_list() + new_guests)))
+                            db_name = clean_whatsapp_name(str(row['Name']))
+                            if db_name.lower() == clean_line.lower():
+                                st.session_state.master_db.at[idx, 'Selected'] = True
+                                match = True
+                                break
+                        if not match:
+                            new_guests.append(clean_line)
+                    
+                    # Update guest list safely
+                    current_guests = get_guests_list()
+                    # Only add new guests if they aren't already there to avoid duplicates
+                    for g in new_guests:
+                        if g not in current_guests:
+                            current_guests.append(g)
+                            
+                    st.session_state.guest_input_val = ", ".join(current_guests)
                     st.rerun()
                 else: st.error("DB Offline")
 
@@ -303,41 +322,30 @@ def run_football_app():
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TAB 2: TACTICS (3-4-2 FORMATION & FORCE FILL) ---
+    # --- TAB 2: TACTICS (3-4-2) ---
     with tab2:
         if not st.session_state.match_squad.empty:
             c_pitch, c_subs = st.columns([3, 1])
-            
             with c_pitch:
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
                 fig, ax = pitch.draw(figsize=(10, 8))
-                
                 def draw_player(player_name, x, y, color):
                     pitch.scatter(x, y, s=600, marker='h', c=color, edgecolors='white', linewidth=2, ax=ax, zorder=2)
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
-
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
-                
-                # FORCE FILL LOGIC: Take 9 players, assign to 9 spots. Rest are subs.
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values("Position", ascending=False)
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values("Position", ascending=False)
-                
-                r_spots = coords_map.get("RED_COORDS", [])
-                b_spots = coords_map.get("BLUE_COORDS", [])
-                
+                r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 subs_r = []
                 for i, row in enumerate(reds.itertuples()):
                     if i < len(r_spots): draw_player(row.Name, r_spots[i][0], r_spots[i][1], '#ff4b4b')
                     else: subs_r.append(row.Name)
-                        
                 subs_b = []
                 for i, row in enumerate(blues.itertuples()):
                     if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
                     else: subs_b.append(row.Name)
-                
                 st.pyplot(fig)
-
             with c_subs:
                 st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
                 if subs_r:
@@ -347,7 +355,6 @@ def run_football_app():
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
                 if not subs_r and not subs_b: st.info("No Subs")
-
         else: st.info("Generate Squad First")
 
     # --- TAB 3: ANALYTICS ---
@@ -355,34 +362,25 @@ def run_football_app():
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
-            
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
-            
             lb = calculate_leaderboard(df_m, official_names)
             if not lb.empty:
                 max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
-
                 sp1, sp2, sp3 = st.columns(3)
                 with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
                 with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
                 with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
-                
                 st.write("---")
-                for p, r in lb.iterrows():
-                     st.markdown(f"<div class='lb-card'><div style='font-size:20px; font-weight:900; color:#FF5722'>#{r['Rank']}</div><div><span style='font-size:18px; font-weight:800; color:#fff'>{p}</span><br><span style='font-size:13px; color:#888'>{r['M']} Matches • {r['W']} Wins</span></div><div class='lb-winrate'>{r['Win %']}%</div></div>", unsafe_allow_html=True)
-            
+                for p, r in lb.iterrows(): st.markdown(f"<div class='lb-card'><div style='font-size:20px; font-weight:900; color:#FF5722'>#{r['Rank']}</div><div><span style='font-size:18px; font-weight:800; color:#fff'>{p}</span><br><span style='font-size:13px; color:#888'>{r['M']} Matches • {r['W']} Wins</span></div><div class='lb-winrate'>{r['Win %']}%</div></div>", unsafe_allow_html=True)
             with st.expander("⚙️ LOG MATCH"):
                 wa_txt = st.text_area("Paste WhatsApp Chat")
                 if st.button("Parse"):
                     parsed = parse_whatsapp_log(wa_txt)
                     if parsed: st.success(f"Parsed: {parsed}")
                     else: st.warning("Failed to parse")
-
-    # --- TAB 4: DATABASE ---
     with tab4:
-        if st.text_input("Password", type="password") == "1234":
-            st.dataframe(st.session_state.master_db)
+        if st.text_input("Password", type="password") == "1234": st.dataframe(st.session_state.master_db)
