@@ -32,18 +32,27 @@ def get_counts():
     smfc_count = 0
     if hasattr(st.session_state, 'master_db') and isinstance(st.session_state.master_db, pd.DataFrame):
         if 'Selected' in st.session_state.master_db.columns:
-            smfc_count = st.session_state.master_db['Selected'].sum()
+            # Ensure boolean type for accurate summing
+            smfc_count = st.session_state.master_db['Selected'].astype(bool).sum()
     guest_count = len(get_guests_list())
     return smfc_count, guest_count, smfc_count + guest_count
 
 def toggle_selection(player_name):
+    """
+    Updates the DB and forces a re-render of all checkboxes to ensure UI sync.
+    """
     if 'Selected' in st.session_state.master_db.columns:
+        # Find player index
         idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
-        current_val = st.session_state.master_db.at[idx, 'Selected']
+        # Toggle Value
+        current_val = bool(st.session_state.master_db.at[idx, 'Selected'])
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
-        for key in list(st.session_state.keys()):
-            if key.startswith(f"chk_{player_name}_"):
-                del st.session_state[key]
+        
+        # CRITICAL FIX: Increment version to force all checkboxes to regenerate.
+        # This prevents "stale" visual ticks that don't match the count.
+        if 'checklist_version' not in st.session_state:
+            st.session_state.checklist_version = 0
+        st.session_state.checklist_version += 1
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -54,7 +63,6 @@ def parse_match_log(text):
         "Team_Blue": "", "Team_Red": ""
     }
     try:
-        # Date Parsing
         date_match = re.search(r'Date:\s*(.*)', text, re.IGNORECASE)
         if date_match: 
             raw_date = date_match.group(1).strip()
@@ -71,7 +79,6 @@ def parse_match_log(text):
         venue_match = re.search(r'(?:Ground|Venue):\s*(.*)', text, re.IGNORECASE)
         if venue_match: data['Venue'] = venue_match.group(1).strip()
         
-        # Scores
         score_match = re.search(r'Score:.*?Blue\s*(\d+)\s*[-v]\s*(\d+)\s*Red', text, re.IGNORECASE)
         if score_match:
             data['Score_Blue'] = int(score_match.group(1))
@@ -80,7 +87,6 @@ def parse_match_log(text):
             elif data['Score_Red'] > data['Score_Blue']: data['Winner'] = "Red"
             else: data['Winner'] = "Draw"
 
-        # Teams extraction
         clean_text = text.replace('*', '')
         blue_start = re.search(r'🔵.*?BLUE TEAM', clean_text, re.IGNORECASE)
         red_start = re.search(r'🔴.*?RED TEAM', clean_text, re.IGNORECASE)
@@ -453,7 +459,6 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
-                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
