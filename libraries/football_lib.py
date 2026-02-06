@@ -192,11 +192,24 @@ def run_football_app():
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
+        
+        /* MATCH HISTORY COLORS */
+        .neon-gold { color: #FFD700; text-shadow: 0 0 5px #FFD700; font-weight: 900; font-size: 14px; }
+        .dull-grey { color: #666; font-weight: 600; opacity: 0.7; font-size: 13px; }
+        .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        
+        /* METRICS */
+        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
+        
+        .badge-box { display: flex; gap: 5px; }
+        .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
+        .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         
         /* ANALYTICS CARDS */
         .lb-card {
@@ -223,20 +236,20 @@ def run_football_app():
         .match-card {
             background: rgba(20, 20, 20, 0.8);
             border-radius: 10px;
-            padding: 15px 20px;
-            margin-bottom: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
             display: flex;
-            justify-content: space-between;
-            align-items: center;
+            align-items: stretch;
             transition: all 0.3s ease;
         }
-        .mc-date { font-size: 11px; color: #aaa; letter-spacing: 1px; margin-bottom: 5px; text-transform: uppercase; }
-        .mc-score { font-size: 18px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; }
+        .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; }
+        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
         
-        /* GLOWING TEXT CLASSES */
-        .winner-gold { color: #FFD700; text-shadow: 0 0 8px rgba(255, 215, 0, 0.6); font-weight: 900; }
-        .loser-grey { color: #666; font-weight: 600; opacity: 0.6; }
-        .draw-white { color: #fff; font-weight: 700; }
+        .mc-date { font-size: 11px; color: #888; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
+        .mc-score { font-size: 22px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; }
+        .mc-score-blue { color: #1c83e1; }
+        .mc-score-red { color: #ff4b4b; }
+        .mc-score-draw { color: #fff; }
 
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
@@ -248,9 +261,6 @@ def run_football_app():
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
-        
-        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
-        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
     </style>
     """, unsafe_allow_html=True)
@@ -499,6 +509,7 @@ def run_football_app():
             
             # --- LEADERBOARD CARDS ---
             if not lb.empty:
+                # Spotlight Top 3 (Simplified for brevity, standard card loop below)
                 max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
@@ -529,32 +540,63 @@ def run_football_app():
             
             for _, row in history.iterrows():
                 # Logic for Gold/Grey coloring & Border
-                b_cls, r_cls = "draw-white", "draw-white"
+                score_b = int(row['Score_Blue'])
+                score_r = int(row['Score_Red'])
+                
+                b_cls, r_cls = "mc-score-draw", "mc-score-draw"
                 border_color = "#555" # Default Grey for Draw
                 
-                if row['Winner'] == "Blue":
-                    b_cls, r_cls = "winner-gold", "loser-grey"
-                    border_color = "#1c83e1" # Blue
-                elif row['Winner'] == "Red":
-                    b_cls, r_cls = "loser-grey", "winner-gold"
-                    border_color = "#ff4b4b" # Red
+                win_text, lose_text = "", ""
+                win_team_cls, lose_team_cls = "", ""
                 
-                # Render Card with dynamic border color
+                # Logic to determine Winner/Loser lists
+                if row['Winner'] == "Blue":
+                    b_cls, r_cls = "mc-score-blue", "mc-score-red" # Blue highlight
+                    border_color = "#1c83e1" # Blue Border
+                    
+                    # Winner = Blue Team, Loser = Red Team
+                    win_text = row['Team_Blue']
+                    lose_text = row['Team_Red']
+                    win_team_cls = "neon-gold"
+                    lose_team_cls = "dull-grey"
+                    
+                elif row['Winner'] == "Red":
+                    b_cls, r_cls = "mc-score-blue", "mc-score-red"
+                    border_color = "#ff4b4b" # Red Border
+                    
+                    # Winner = Red Team, Loser = Blue Team
+                    win_text = row['Team_Red']
+                    lose_text = row['Team_Blue']
+                    win_team_cls = "neon-gold"
+                    lose_team_cls = "dull-grey"
+                else:
+                    # Draw
+                    win_text = row['Team_Blue']
+                    lose_text = row['Team_Red']
+                    win_team_cls = "draw-text"
+                    lose_team_cls = "draw-text"
+
+                # Render Card with Layout
                 st.markdown(f"""
                 <div class='match-card' style='border-left: 4px solid {border_color};'>
-                    <div>
+                    <div class='mc-left'>
                         <div class='mc-date'>{row['Date']} | {row['Venue']}</div>
                         <div class='mc-score'>
-                            <span class='{b_cls}'>BLUE {row['Score_Blue']}</span> 
+                            <span class='{b_cls}'>BLUE {score_b}</span> 
                             <span style='color:#888; margin:0 5px;'>-</span>
-                            <span class='{r_cls}'>{row['Score_Red']} RED</span>
+                            <span class='{r_cls}'>{score_r} RED</span>
                         </div>
+                    </div>
+                    <div class='mc-right'>
+                        <div class='{win_team_cls}'>{win_text}</div>
+                        <div class='{lose_team_cls}'>{lose_text}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
+                # Updated text area label to specific neon-white instruction
                 wa_txt = st.text_area("Paste the final full result with scoreline and team split")
                 if st.button("Parse"):
                     parsed = parse_match_log(wa_txt)
@@ -564,8 +606,11 @@ def run_football_app():
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
                     
+                    # Main heading (Neon White)
                     st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
+
                     c_d, c_t, c_v = st.columns(3)
+                    # Standard labels pick up neon-white CSS
                     new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
