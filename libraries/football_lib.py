@@ -19,9 +19,9 @@ def get_img_as_base64(file):
     return ""
 
 def clean_whatsapp_name(text):
-    # 1. Remove invisible Unicode characters (common in WhatsApp)
-    text = re.sub(r'[\u200b\u2060\ufeff]', '', text)
-    # 2. Remove leading numbers and dots (e.g., "1. ", "10. ")
+    # 1. Remove invisible Unicode characters & Non-breaking spaces (\xa0)
+    text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
+    # 2. Remove leading numbers and dots/brackets (e.g., "1. ", "10) ")
     text = re.sub(r'^\d+[\.\)]\s*', '', text)
     # 3. Remove leading/trailing whitespace
     return text.strip()
@@ -148,7 +148,7 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS: VIBE + READABILITY FIXES ---
+    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -160,7 +160,7 @@ def run_football_app():
              background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important;
         }
         
-        /* 2. TEXTAREA (SPECIAL: BLACK TEXT ON WHITE BG for COPY/PASTE) */
+        /* 2. TEXTAREA (SPECIAL: BLACK TEXT ON WHITE BG for PASTE) */
         textarea {
             background-color: #ffffff !important;
             color: #000000 !important;
@@ -172,14 +172,12 @@ def run_football_app():
             border: 1px solid #ccc !important;
         }
 
-        /* LABELS */
+        /* LABELS & METRICS */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
-
-        /* METRICS */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
 
-        /* BADGES */
+        /* COMPONENTS */
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
@@ -218,38 +216,40 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
-        # PASTE AREA (White BG, Black Text)
+        # --- PASTE LOGIC WITH FIXES ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
-            whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here (1. Name...)")
+            whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
                 if 'Selected' in st.session_state.master_db.columns:
-                    st.session_state.master_db['Selected'] = False
+                    st.session_state.master_db['Selected'] = False # Reset
+                    
                     new_guests = []
                     lines = whatsapp_text.split('\n')
                     for line in lines:
-                        # Clean the line using the enhanced function
                         clean_line = clean_whatsapp_name(line)
-                        if len(clean_line) < 2: continue # Skip empty or super short lines
+                        if len(clean_line) < 2: continue
                         
                         match = False
-                        # Try to find match in DB (Case Insensitive)
                         for idx, row in st.session_state.master_db.iterrows():
-                            db_name = clean_whatsapp_name(str(row['Name']))
-                            if db_name.lower() == clean_line.lower():
+                            # Case insensitive compare
+                            if clean_whatsapp_name(str(row['Name'])).lower() == clean_line.lower():
                                 st.session_state.master_db.at[idx, 'Selected'] = True
                                 match = True
                                 break
-                        if not match:
-                            new_guests.append(clean_line)
+                        if not match: new_guests.append(clean_line)
                     
                     # Update guest list safely
-                    current_guests = get_guests_list()
-                    # Only add new guests if they aren't already there to avoid duplicates
+                    current = get_guests_list()
                     for g in new_guests:
-                        if g not in current_guests:
-                            current_guests.append(g)
+                        if g not in current: current.append(g)
+                    st.session_state.guest_input_val = ", ".join(current)
+                    
+                    # --- CRITICAL FIX: RESET CHECKBOX WIDGET STATE ---
+                    # Delete session keys for checkboxes so they re-initialize from DB
+                    for key in list(st.session_state.keys()):
+                        if key.startswith("chk_"):
+                            del st.session_state[key]
                             
-                    st.session_state.guest_input_val = ", ".join(current_guests)
                     st.rerun()
                 else: st.error("DB Offline")
 
@@ -259,6 +259,7 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
+                # Checkbox uses DB value as default
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}_{t_n}", on_change=toggle_selection, args=(row['Name'],))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
@@ -322,7 +323,7 @@ def run_football_app():
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"; st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TAB 2: TACTICS (3-4-2) ---
+    # --- TAB 2: TACTICS ---
     with tab2:
         if not st.session_state.match_squad.empty:
             c_pitch, c_subs = st.columns([3, 1])
