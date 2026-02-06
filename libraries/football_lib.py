@@ -126,7 +126,7 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (SPACED OUT COORDINATES) ---
+# --- 📌 PRESETS (SPACED OUT) ---
 formation_presets = {
     "9 vs 9": {
         "limit": 9,
@@ -144,21 +144,44 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
+        
+        /* WIDGET STYLING */
         input { color: #ffffff !important; }
-        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; }
+        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { 
+            background-color: rgba(255,255,255,0.08) !important; 
+            border: 1px solid rgba(255,255,255,0.2) !important; 
+            color: white !important;
+        }
+        
+        /* MOBILE COLUMN FIX: Allow columns to shrink to fit side-by-side */
+        @media (max-width: 640px) {
+            div[data-testid="column"] {
+                min-width: 0 !important;
+                flex: 1 1 auto !important;
+                padding-left: 2px !important;
+                padding-right: 2px !important;
+            }
+            /* Shrink dropdown text to fit in small boxes */
+            div[data-baseweb="select"] div { font-size: 11px !important; padding: 0px 4px !important; }
+            .guest-row-label { font-size: 12px !important; }
+        }
+
         textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
         div[data-baseweb="textarea"] > div { background-color: #ffffff !important; border: 1px solid #ccc !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
+        
+        /* METRICS & BADGES */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
+        
+        /* BUTTONS & CARDS */
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
@@ -167,6 +190,7 @@ def run_football_app():
         .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
         
+        /* ANALYTICS */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
@@ -176,26 +200,6 @@ def run_football_app():
         
         .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
-
-        /* --- MOBILE OPTIMIZATIONS (FIXED) --- */
-        @media (max-width: 640px) {
-            /* 1. Force horizontal layout for columns */
-            div[data-testid="stHorizontalBlock"] {
-                flex-wrap: nowrap !important;
-                overflow-x: hidden !important; /* No Scroll */
-                gap: 2px !important; /* Reduce Gap */
-            }
-            /* 2. Allow columns to shrink properly */
-            div[data-testid="column"] {
-                min-width: 0 !important;
-                flex: 1 1 auto !important;
-                padding: 0 !important;
-            }
-            /* 3. Scale down text in dropdowns/labels */
-            .guest-row-label { font-size: 11px !important; }
-            div[data-baseweb="select"] div { font-size: 10px !important; padding-left: 2px !important; padding-right: 2px !important; }
-            div[data-baseweb="base-input"] input { font-size: 10px !important; }
-        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -277,9 +281,8 @@ def run_football_app():
             st.write("---")
             st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
             for g_name in guests:
-                # Optimized columns for mobile: [Name: 3.5, Pos: 1.5, Stars: 2.5]
-                # Squeezes dropdowns to fit on one line
-                c_name, c_pos, c_lvl = st.columns([3.5, 1.5, 2.5])
+                # Optimized columns: [Name(4), Pos(2), Stars(3)] to fit side-by-side
+                c_name, c_pos, c_lvl = st.columns([4, 2, 3])
                 with c_name: st.markdown(f"<div class='guest-row-label'>{g_name}</div>", unsafe_allow_html=True)
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
@@ -288,8 +291,8 @@ def run_football_app():
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
-                # Optimized columns for Edit: [Player: 3.5, Pos: 2, Btn: 2]
-                c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2])
+                # Optimized columns: [Player(4), New Pos(2), Button(3)]
+                c_p_sel, c_p_pos, c_p_btn = st.columns([4, 2, 3])
                 with c_p_sel:
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
                     p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
