@@ -19,24 +19,36 @@ def get_img_as_base64(file):
     return ""
 
 def extract_whatsapp_players(text):
+    # 1. Global nuke of invisible characters
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
+    # 2. Extract lines: Number -> Dot/Paren -> Name
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
+    # 3. Basic strip
     cleaned_names = [m.strip() for m in matches if len(m.strip()) > 1]
     return cleaned_names
 
 def clean_name_simple(text):
     """
-    Advanced Cleaner: Removes status indicators to find the 'True Name'.
+    Master Cleaner: Strips status, brackets, and invisible chars to find the name.
     """
-    # 1. Remove invisible chars
+    # 1. Invisible chars (Just in case)
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    # 2. Remove anything inside parentheses (e.g. "(T)", "(Late)", "(GK)")
-    text = re.sub(r'\s*\(.*?\)', '', text)
-    # 3. Remove specific status keywords at the end of the line
-    text = re.sub(r'\s+(?:tentative|late|maybe|confirm)\b.*', '', text, flags=re.IGNORECASE)
-    # 4. Remove trailing hyphens or " T"
-    text = re.sub(r'\s+[-–]\s*.*', '', text) 
-    text = re.sub(r'\s+t$', '', text, flags=re.IGNORECASE) 
+    
+    # 2. Remove anything in parentheses: "Naveen (T)", "John (Late)"
+    # Matches space (optional) + ( + anything + )
+    text = re.sub(r'\s*\([^)]*\)', '', text)
+    
+    # 3. Remove " - Status": "Naveen - T", "John - Late"
+    # Matches space + hyphen + anything to end of line
+    text = re.sub(r'\s+[-–].*$', '', text)
+    
+    # 4. Remove loose " T" or " t" at the end of the name: "Naveen T"
+    # Only matches if preceded by space and is the last char
+    text = re.sub(r'\s+t$', '', text, flags=re.IGNORECASE)
+    
+    # 5. Remove common status words if unbracketed: "Naveen Tentative"
+    text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest)\b.*$', '', text, flags=re.IGNORECASE)
+    
     return text.strip()
 
 def get_guests_list():
@@ -277,7 +289,9 @@ def run_football_app():
                             db_name = clean_name_simple(str(row['Name'])).lower()
                             if db_name == clean_input:
                                 st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
+                        # If NOT match, append the CLEANED name to guests
                         if not match: new_guests.append(clean_name_simple(clean_line))
+                    
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
@@ -433,18 +447,13 @@ def run_football_app():
             </div>
             """, unsafe_allow_html=True)
             
-            # --- COPY TEMPLATE UPDATE ---
             dt_match = datetime.combine(match_date, match_time)
             dt_end = dt_match + timedelta(minutes=duration)
-            
             str_date = dt_match.strftime('%A, %d %b')
             str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
-            
             r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
             b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
-            
             summary = f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
-            
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
