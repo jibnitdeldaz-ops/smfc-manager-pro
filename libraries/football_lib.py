@@ -18,10 +18,29 @@ def get_img_as_base64(file):
         return base64.b64encode(data).decode()
     return ""
 
-def clean_whatsapp_name(text):
+def extract_whatsapp_players(text):
+    """
+    Robust extraction that ignores headers/footers and handles invisible chars.
+    Looks for pattern: (New Line) -> (Number) -> (Dot/Paren) -> (Name)
+    """
+    # 1. Nuke invisible characters globally
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    text = re.sub(r'^[\d\.\)\-\s]+', '', text)
-    return text.strip()
+    
+    # 2. Find all matches of "1. Name" or "1) Name"
+    # (?:^|\n)  -> Matches start of string OR a new line
+    # \s* -> Optional whitespace
+    # \d+       -> The Number (1, 10, etc)
+    # [\.\)]    -> The separator (. or ))
+    # \s* -> Optional whitespace
+    # ([^\n\r]+)-> CAPTURE GROUP: The name (everything else on the line)
+    matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
+    
+    # 3. Clean up the captured names
+    cleaned_names = [m.strip() for m in matches if len(m.strip()) > 1]
+    return cleaned_names
+
+def clean_name_simple(text):
+    return re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text).strip()
 
 def get_guests_list():
     raw = st.session_state.get('guest_input_val', '')
@@ -40,6 +59,7 @@ def toggle_selection(player_name):
         idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
         current_val = st.session_state.master_db.at[idx, 'Selected']
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
+        # Sync Fix: Wipe widget memory for this player in ALL tabs
         for key in list(st.session_state.keys()):
             if key.startswith(f"chk_{player_name}_"):
                 del st.session_state[key]
@@ -173,13 +193,12 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # --- NEW: Change Log ---
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
-        st.session_state.position_changes = [] # Reset log on refresh
+        st.session_state.position_changes = []
         st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
@@ -188,30 +207,46 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
+        # --- PASTE LOGIC (REGEX FIX) ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
                 if 'Selected' in st.session_state.master_db.columns:
                     st.session_state.master_db['Selected'] = False 
+                    
+                    # 1. EXTRACT NAMES ROBUSTLY
                     new_guests = []
                     found_count = 0
-                    lines = whatsapp_text.split('\n')
-                    for line in lines:
-                        if not re.match(r'^\d', line.strip()): continue 
-                        clean_line = clean_whatsapp_name(line)
-                        if len(clean_line) < 2: continue
+                    
+                    # This new function ignores headers like "Sun morning" automatically
+                    extracted_names = extract_whatsapp_players(whatsapp_text)
+                    
+                    for clean_line in extracted_names:
                         match = False
                         for idx, row in st.session_state.master_db.iterrows():
-                            if str(row['Name']).strip().lower() == clean_line.lower():
-                                st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
-                        if not match: new_guests.append(clean_line)
+                            # Compare lowercase, cleaned names
+                            db_name = clean_name_simple(str(row['Name'])).lower()
+                            input_name = clean_name_simple(clean_line).lower()
+                            
+                            if db_name == input_name:
+                                st.session_state.master_db.at[idx, 'Selected'] = True
+                                match = True
+                                found_count += 1
+                                break
+                        if not match: 
+                            new_guests.append(clean_line)
+                    
+                    # 2. Update guest list
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
+                    
+                    # 3. Reset Checkboxes
                     for key in list(st.session_state.keys()):
                         if key.startswith("chk_"): del st.session_state[key]
-                    st.toast(f"✅ Found {found_count} players. Guest list updated!")
+                        
+                    st.toast(f"✅ Found {found_count} players from DB. {len(new_guests)} guests added!")
                     st.rerun()
                 else: st.error("DB Offline")
 
@@ -249,7 +284,6 @@ def run_football_app():
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
 
-        # --- TWEAK POSITIONS (LOGGING + BUG FIX) ---
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
@@ -263,18 +297,16 @@ def run_football_app():
                     st.write(""); st.write("")
                     if st.button("UPDATE POS", key="btn_update_pos"):
                         p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
-                        # Find and update
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
                         old_pos = st.session_state.master_db.at[idx, 'Position']
+                        
+                        # UPDATE AND FORCE SELECTED
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
-                        # FIX: Ensure player remains selected
                         st.session_state.master_db.at[idx, 'Selected'] = True 
                         
-                        # Add to log
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 
-                # SHOW CHANGE LOG
                 if st.session_state.position_changes:
                     st.write("")
                     for change in st.session_state.position_changes:
