@@ -93,6 +93,11 @@ def parse_match_log(text):
         if score_match:
             data['Score_Blue'] = int(score_match.group(1))
             data['Score_Red'] = int(score_match.group(2))
+            
+            # Auto-calculate Winner logic
+            if data['Score_Blue'] > data['Score_Red']: data['Winner'] = "Blue"
+            elif data['Score_Red'] > data['Score_Blue']: data['Winner'] = "Red"
+            else: data['Winner'] = "Draw"
 
         # Teams extraction
         clean_text = text.replace('*', '')
@@ -163,7 +168,6 @@ def calculate_player_score(row):
         except: stats[k] = 70.0
 
     pos = row.get('Position', 'MID')
-    
     if pos == 'FWD':
         weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
     elif pos == 'DEF':
@@ -208,12 +212,10 @@ def run_football_app():
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         input { color: #ffffff !important; }
         div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; }
-        
         @media (max-width: 640px) {
             div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
             div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
         }
-
         textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
         div[data-baseweb="textarea"] > div { background-color: #ffffff !important; border: 1px solid #ccc !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
@@ -347,7 +349,9 @@ def run_football_app():
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 if st.session_state.position_changes:
-                    st.write(""); for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
+                    st.write("")
+                    for change in st.session_state.position_changes:
+                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
 
         st.write(""); 
@@ -432,7 +436,9 @@ def run_football_app():
                     st.session_state.red_ovr = int(r_p['Power'].mean()); st.session_state.blue_ovr = int(b_p['Power'].mean())
                     st.rerun()
             if st.session_state.transfer_log:
-                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write("")
+                for log in st.session_state.transfer_log:
+                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -469,7 +475,6 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
-                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
