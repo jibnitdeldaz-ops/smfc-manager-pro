@@ -4,7 +4,7 @@ import numpy as np
 from streamlit_gsheets import GSheetsConnection
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta  # <--- FIXED IMPORT HERE
+from datetime import datetime, timedelta
 import streamlit.components.v1 as components
 import re
 import os
@@ -17,9 +17,6 @@ def extract_whatsapp_players(text):
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
 def clean_player_name(text):
-    """
-    Master Cleaner: Removes brackets, status codes, and extra spaces.
-    """
     text = re.sub(r'\s*\([tT]\)', '', text)
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
     text = re.sub(r'\s+[-–].*$', '', text)
@@ -35,25 +32,28 @@ def get_counts():
     smfc_count = 0
     if hasattr(st.session_state, 'master_db') and isinstance(st.session_state.master_db, pd.DataFrame):
         if 'Selected' in st.session_state.master_db.columns:
-            # Force boolean conversion to ensure accurate sum
-            smfc_count = st.session_state.master_db['Selected'].fillna(False).astype(int).sum()
+            # FORCE BOOLEAN to ensure 100% accurate math
+            smfc_count = st.session_state.master_db['Selected'].fillna(False).astype(bool).sum()
     guest_count = len(get_guests_list())
     return smfc_count, guest_count, smfc_count + guest_count
 
 def toggle_selection(idx):
     """
-    Updates DB by Row ID (Index) to prevent duplicate name issues.
+    Updates DB and increments Global Version to force UI refresh.
     """
     if 'Selected' in st.session_state.master_db.columns:
-        # Toggle boolean value directly at the index
+        # Toggle the boolean value
         current_val = bool(st.session_state.master_db.at[idx, 'Selected'])
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         
-        # Clear related session keys to force UI refresh for this specific index
-        # This acts as a "hard reset" for the checkbox visual state
-        for key in list(st.session_state.keys()):
-            if f"chk_{idx}_" in key:
-                del st.session_state[key]
+        # --- THE NUCLEAR FIX ---
+        # Increment a global version counter.
+        # This changes the 'key' of every checkbox widget in the app.
+        # Streamlit treats them as brand new widgets and reloads their 
+        # state strictly from the database, eliminating "stale" ticks.
+        if 'ui_version' not in st.session_state:
+            st.session_state.ui_version = 0
+        st.session_state.ui_version += 1
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -163,14 +163,9 @@ def load_data():
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
+        if 'Selected' not in df.columns: df['Selected'] = False
+        else: df['Selected'] = df['Selected'].fillna(False).astype(bool) # Sanitize on load
         
-        # --- DATA CLEANING ON LOAD ---
-        # Ensure Selected is boolean False/True, no NaNs, no strings
-        if 'Selected' not in df.columns: 
-            df['Selected'] = False
-        else:
-            df['Selected'] = df['Selected'].fillna(False).astype(bool)
-            
         try: df_matches = conn.read(worksheet="Match_History", ttl=0, show_spinner=False)
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
@@ -188,44 +183,31 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
+    # Initialize version state if missing
+    if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
+    if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
+    if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
+
     # --- GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
-        
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
-
-        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] {
-            background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important;
-        }
+        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
-        @media (max-width: 640px) { div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; } }
-
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
-        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
-        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
-        .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
-        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
-        .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
-        .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
-        .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
-        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
-        .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
-        .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
-        .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
+        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -237,19 +219,11 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    if 'position_changes' not in st.session_state: st.session_state.position_changes = []
-    if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
-    
-    # CRITICAL VERSIONING INIT
-    if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
-    if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
-        st.session_state.position_changes = [] 
-        st.session_state.transfer_log = []
-        st.session_state.checklist_version = 0
+        st.session_state.ui_version += 1 # Force reload
         st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
@@ -278,7 +252,7 @@ def run_football_app():
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
-                    st.session_state.checklist_version += 1
+                    st.session_state.ui_version += 1 # Force sync update
                     st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
                 else: st.error("DB Offline")
 
@@ -288,9 +262,8 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
-                # --- FIXED KEY SYSTEM: Use row INDEX (idx) instead of Name ---
-                # This guarantees uniqueness even if names are duplicate
-                key_id = f"chk_{idx}_{t_n}_v{st.session_state.checklist_version}"
+                # Unique Key includes UI Version -> Forces brand new widget on every update
+                key_id = f"chk_{idx}_{t_n}_v{st.session_state.ui_version}"
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(idx,))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
@@ -299,6 +272,8 @@ def run_football_app():
         with pos_tabs[3]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'DEF'], "def")
         st.write(""); st.text_input("Guests (Comma separated)", key="guest_input_val"); st.markdown('</div>', unsafe_allow_html=True)
 
+        # ... (Rest of Tab 1, 2, 3, 4 logic remains same, just ensuring indent)
+        # Tab 1: Match Settings
         with st.expander("⚙️ MATCH SETTINGS (Date, Time, Venue)", expanded=False):
             c1, c2 = st.columns(2)
             match_date = c1.date_input("Match Date", datetime.today(), key="match_date_input")
@@ -308,6 +283,7 @@ def run_football_app():
             duration = c2.slider("Duration (Mins)", 60, 120, 90, 30, key="duration_slider")
             st.session_state.match_format = st.selectbox("Format", ["9 vs 9", "7 vs 7", "6 vs 6", "5 vs 5"], key="fmt_select")
 
+        # Tab 1: Guest Squad
         guests = get_guests_list()
         if guests:
             st.write("---"); st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
@@ -318,6 +294,7 @@ def run_football_app():
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
 
+        # Tab 1: Edit Pos
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
@@ -334,7 +311,7 @@ def run_football_app():
                         old_pos = st.session_state.master_db.at[idx, 'Position']
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
                         st.session_state.master_db.at[idx, 'Selected'] = True 
-                        st.session_state.checklist_version += 1
+                        st.session_state.ui_version += 1
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 if st.session_state.position_changes:
@@ -496,7 +473,6 @@ def run_football_app():
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
-                # Updated text area label to specific neon-white instruction
                 wa_txt = st.text_area("Paste the final full result with scoreline and team split")
                 if st.button("Parse"):
                     parsed = parse_match_log(wa_txt)
@@ -506,17 +482,13 @@ def run_football_app():
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
                     
-                    # Main heading (Neon White)
                     st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
-
                     c_d, c_t, c_v = st.columns(3)
-                    # Standard labels pick up neon-white CSS
                     new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
                     
                     c_s1, c_s2 = st.columns(2)
-                    # Custom Neon Labels for Scores
                     with c_s1:
                         st.markdown("<div class='neon-blue'>BLUE SCORE</div>", unsafe_allow_html=True)
                         new_score_b = st.number_input("Blue Score", value=pm['Score_Blue'], label_visibility="collapsed")
@@ -524,25 +496,20 @@ def run_football_app():
                         st.markdown("<div class='neon-red'>RED SCORE</div>", unsafe_allow_html=True)
                         new_score_r = st.number_input("Red Score", value=pm['Score_Red'], label_visibility="collapsed")
                     
-                    # Custom Neon Labels for Teams
                     st.markdown("<div class='neon-blue' style='margin-top:10px;'>BLUE TEAM LIST</div>", unsafe_allow_html=True)
                     new_blue = st.text_area("Blue Team", pm['Team_Blue'], label_visibility="collapsed")
 
                     st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
                     new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
-                    # Cost/Late Fee Removed
-
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
-                        # SECURE PASSWORD CHECK
                         try:
                             admin_pw = st.secrets["passwords"]["admin"]
                         except:
-                            admin_pw = "1234" # Fallback if secrets missing locally
+                            admin_pw = "1234"
                             
                         if save_pass == admin_pw:
-                            # 2. SAVE ONLY CORE FIELDS (No Time/Cost/LateFee)
                             new_row = pd.DataFrame([{
                                 "Date": new_date,
                                 "Score_Blue": new_score_b,
@@ -550,15 +517,13 @@ def run_football_app():
                                 "Winner": "Blue" if new_score_b > new_score_r else ("Red" if new_score_r > new_score_b else "Draw"),
                                 "Team_Blue": new_blue,
                                 "Team_Red": new_red,
-                                # Ensure missing columns don't break append if they exist in sheet but leave empty
                                 "Time": "", "Venue": new_venue, "Cost": "", "Gpay": "", "LateFee": ""
                             }])
-                            # Update DB
                             try:
                                 updated_df = pd.concat([st.session_state.match_db, new_row], ignore_index=True)
                                 conn = st.session_state.conn
                                 conn.update(worksheet="Match_History", data=updated_df)
-                                st.session_state.match_db = updated_df # Update session
+                                st.session_state.match_db = updated_df
                                 st.success("Match Saved Successfully! (Check Google Sheet)")
                             except Exception as e:
                                 st.error(f"Failed to save: {e}")
@@ -566,15 +531,12 @@ def run_football_app():
                             st.error("Wrong Password")
 
     with tab4:
-        # 🔒 SECURE DATABASE VIEW
-        # 1. Try to get password from secrets
         try:
             admin_pw = st.secrets["passwords"]["admin"]
         except (FileNotFoundError, KeyError):
             st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
-            st.stop()  # Stop execution if no secret is found
+            st.stop()
 
-        # 2. Check Input (No hardcoded fallback)
         if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
             st.success("✅ Access Granted")
             st.dataframe(st.session_state.master_db, use_container_width=True)
