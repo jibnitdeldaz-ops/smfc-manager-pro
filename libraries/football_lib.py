@@ -25,7 +25,19 @@ def extract_whatsapp_players(text):
     return cleaned_names
 
 def clean_name_simple(text):
-    return re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text).strip()
+    """
+    Advanced Cleaner: Removes status indicators to find the 'True Name'.
+    """
+    # 1. Remove invisible chars
+    text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
+    # 2. Remove anything inside parentheses (e.g. "(T)", "(Late)", "(GK)")
+    text = re.sub(r'\s*\(.*?\)', '', text)
+    # 3. Remove specific status keywords at the end of the line
+    text = re.sub(r'\s+(?:tentative|late|maybe|confirm)\b.*', '', text, flags=re.IGNORECASE)
+    # 4. Remove trailing hyphens or " T"
+    text = re.sub(r'\s+[-–]\s*.*', '', text) 
+    text = re.sub(r'\s+t$', '', text, flags=re.IGNORECASE) 
+    return text.strip()
 
 def get_guests_list():
     raw = st.session_state.get('guest_input_val', '')
@@ -47,52 +59,6 @@ def toggle_selection(player_name):
         for key in list(st.session_state.keys()):
             if key.startswith(f"chk_{player_name}_"):
                 del st.session_state[key]
-
-# --- 🧠 ALGORITHMIC BALANCING HELPERS ---
-def calculate_player_score(row):
-    """
-    Calculates a single 'Power Score' (0-100) based on Position weights + Star Rating.
-    """
-    # 1. Base Stats (Default to 70 if missing)
-    stats = {
-        'PAC': row.get('PAC', 70), 'SHO': row.get('SHO', 70),
-        'PAS': row.get('PAS', 70), 'DRI': row.get('DRI', 70),
-        'DEF': row.get('DEF', 70), 'PHY': row.get('PHY', 70)
-    }
-    # Clean NaN
-    for k, v in stats.items():
-        if pd.isna(v) or v == '': stats[k] = 70
-        else: stats[k] = float(v)
-
-    pos = row.get('Position', 'MID')
-    
-    # 2. Positional Weights (What matters for this role?)
-    if pos == 'FWD':
-        # Shooting, Dribbling, Pace are king
-        weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + 
-                        stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
-    elif pos == 'DEF':
-        # Defending, Physical, Pace (recovery)
-        weighted_avg = (stats['DEF']*0.35 + stats['PHY']*0.25 + stats['PAC']*0.15 + 
-                        stats['PAS']*0.15 + stats['DRI']*0.05 + stats['SHO']*0.05)
-    else: # MID (Box to Box)
-        # Balanced, slightly favored passing
-        weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + 
-                        stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
-
-    # 3. Star Rating Impact (The "Manager's Eye")
-    # If StarRating exists (1-5), it counts for 40% of the score.
-    # We map 1-5 stars to 50-90 range approx.
-    star_r = row.get('StarRating', 3)
-    if pd.isna(star_r) or star_r == '': star_r = 3
-    star_r = float(star_r)
-    
-    # Map 1->55, 2->65, 3->75, 4->85, 5->95
-    star_score = 45 + (star_r * 10)
-    
-    # Final Score: 60% Stats, 40% Stars
-    final_score = (weighted_avg * 0.6) + (star_score * 0.4)
-    return round(final_score, 1)
 
 # --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
@@ -157,6 +123,35 @@ def calculate_leaderboard(df_matches, official_names):
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
 
+# --- 🧠 ALGORITHMIC BALANCING ---
+def calculate_player_score(row):
+    """Calculates Power Score (0-100) based on Positional Weights + Star Rating"""
+    stats = {
+        'PAC': row.get('PAC', 70), 'SHO': row.get('SHO', 70),
+        'PAS': row.get('PAS', 70), 'DRI': row.get('DRI', 70),
+        'DEF': row.get('DEF', 70), 'PHY': row.get('PHY', 70)
+    }
+    for k, v in stats.items():
+        if pd.isna(v) or v == '': stats[k] = 70
+        else: stats[k] = float(v)
+
+    pos = row.get('Position', 'MID')
+    
+    # Positional Weights
+    if pos == 'FWD':
+        weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
+    elif pos == 'DEF':
+        weighted_avg = (stats['DEF']*0.35 + stats['PHY']*0.25 + stats['PAC']*0.15 + stats['PAS']*0.15 + stats['DRI']*0.05 + stats['SHO']*0.05)
+    else: 
+        weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
+
+    # Star Rating Impact (40%)
+    star_r = row.get('StarRating', 3)
+    if pd.isna(star_r) or star_r == '': star_r = 3
+    star_score = 45 + (float(star_r) * 10)
+    
+    return round((weighted_avg * 0.6) + (star_score * 0.4), 1)
+
 # --- 📥 DATA LOADING ---
 def load_data():
     conn = None
@@ -169,14 +164,21 @@ def load_data():
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
     except Exception as e:
-        # Fallback dummy with StarRating
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY", "StarRating"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS ---
+# --- 📌 PRESETS (SPACED OUT COORDINATES) ---
 formation_presets = {
-    "9 vs 9": {"limit": 9, "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]},
-    "7 vs 7": {"limit": 7, "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]},
+    "9 vs 9": {
+        "limit": 9,
+        "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)],
+        "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]
+    },
+    "7 vs 7": {
+        "limit": 7,
+        "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
+        "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
+    },
     "6 vs 6": {"limit": 6, "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]},
     "5 vs 5": {"limit": 5, "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]}
 }
@@ -270,10 +272,12 @@ def run_football_app():
                     extracted_names = extract_whatsapp_players(whatsapp_text)
                     for clean_line in extracted_names:
                         match = False
+                        clean_input = clean_name_simple(clean_line).lower()
                         for idx, row in st.session_state.master_db.iterrows():
-                            if clean_name_simple(str(row['Name'])).lower() == clean_name_simple(clean_line).lower():
+                            db_name = clean_name_simple(str(row['Name'])).lower()
+                            if db_name == clean_input:
                                 st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
-                        if not match: new_guests.append(clean_line)
+                        if not match: new_guests.append(clean_name_simple(clean_line))
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
@@ -349,7 +353,6 @@ def run_football_app():
             if 'Selected' in st.session_state.master_db.columns:
                 active = st.session_state.master_db[st.session_state.master_db['Selected'] == True].copy()
                 
-                # 1. PROCESS GUESTS
                 guest_rows = []
                 star_map = {"⭐": 1, "⭐⭐": 2, "⭐⭐⭐": 3, "⭐⭐⭐⭐": 4, "⭐⭐⭐⭐⭐": 5}
                 for g in get_guests_list():
@@ -363,13 +366,9 @@ def run_football_app():
                 if guest_rows: active = pd.concat([active, pd.DataFrame(guest_rows)], ignore_index=True)
                 
                 if not active.empty:
-                    # 2. CALCULATE POWER SCORES
                     active['Power'] = active.apply(calculate_player_score, axis=1)
-                    
-                    # 3. SMART BALANCING ALGORITHM (SNAKE DRAFT)
                     active = active.sort_values(['Position', 'Power'], ascending=[True, False])
                     
-                    # Buckets
                     gks = active[active['Position'] == 'GK'].sort_values('Power', ascending=False)
                     defs = active[active['Position'] == 'DEF'].sort_values('Power', ascending=False)
                     mids = active[active['Position'] == 'MID'].sort_values('Power', ascending=False)
@@ -378,12 +377,10 @@ def run_football_app():
                     red_team, blue_team = [], []
                     red_score, blue_score = 0, 0
                     
-                    # Snake Draft Function
-                    turn = 0 # 0=Red, 1=Blue
+                    turn = 0 
                     def draft_players(pool):
                         nonlocal turn, red_score, blue_score
                         for _, p in pool.iterrows():
-                            # Auto-balance: If one team is way stronger/larger, give to other
                             if len(red_team) > len(blue_team) + 1: turn = 1
                             elif len(blue_team) > len(red_team) + 1: turn = 0
                             
@@ -392,21 +389,17 @@ def run_football_app():
                             else:
                                 blue_team.append(p); blue_score += p['Power']; turn = 0
                     
-                    # Draft Order: GK -> DEF -> MID -> FWD
                     draft_players(gks)
                     draft_players(defs)
                     draft_players(mids)
                     draft_players(fwds)
                     
-                    # Convert to DataFrame
                     df_red = pd.DataFrame(red_team); df_red['Team'] = 'Red'
                     df_blue = pd.DataFrame(blue_team); df_blue['Team'] = 'Blue'
                     
-                    # Final Squad
                     st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
                     st.session_state.red_ovr = int(df_red['Power'].mean()) if not df_red.empty else 0
                     st.session_state.blue_ovr = int(df_blue['Power'].mean()) if not df_blue.empty else 0
-                    
                     st.rerun()
             else: st.error("Database offline.")
 
@@ -415,15 +408,11 @@ def run_football_app():
             st.session_state.match_squad['Pos_Ord'] = st.session_state.match_squad['Position'].map(pos_map).fillna(4)
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
-            
-            r_ovr = st.session_state.get('red_ovr', 0)
-            b_ovr = st.session_state.get('blue_ovr', 0)
+            r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
 
-            # --- MOBILE SIDE-BY-SIDE VIEW (FLEXBOX) ---
-            red_html = ""
+            red_html = ""; blue_html = ""
             for _, p in reds.iterrows():
                 red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
-            blue_html = ""
             for _, p in blues.iterrows():
                 blue_html += f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
 
@@ -444,8 +433,18 @@ def run_football_app():
             </div>
             """, unsafe_allow_html=True)
             
-            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
-            summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
+            # --- COPY TEMPLATE UPDATE ---
+            dt_match = datetime.combine(match_date, match_time)
+            dt_end = dt_match + timedelta(minutes=duration)
+            
+            str_date = dt_match.strftime('%A, %d %b')
+            str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
+            
+            r_list = "\n".join([p['Name'] for p in reds.to_dict('records')])
+            b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
+            
+            summary = f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
+            
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
@@ -463,26 +462,20 @@ def run_football_app():
             with col_btn:
                 st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
-                    s_red = s_red_str.rsplit(" (", 1)[0]
-                    s_blue = s_blue_str.rsplit(" (", 1)[0]
+                    s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
-                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
-                    st.session_state.match_squad.at[idx_b, "Team"] = "Red"
+                    st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
                     
-                    # Update OVRs after swap
-                    reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
-                    blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
-                    st.session_state.red_ovr = int(reds['Power'].mean())
-                    st.session_state.blue_ovr = int(blues['Power'].mean())
-                    
+                    r_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
+                    b_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
+                    st.session_state.red_ovr = int(r_p['Power'].mean())
+                    st.session_state.blue_ovr = int(b_p['Power'].mean())
                     st.rerun()
             
             if st.session_state.transfer_log:
-                st.write("")
-                for log in st.session_state.transfer_log:
-                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -529,14 +522,15 @@ def run_football_app():
                 
                 st.write("---")
                 st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>TEAM SQUADS</h4>", unsafe_allow_html=True)
+                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 st.markdown(f"""
                 <div style="display: flex; gap: 5px; margin-top: 10px;">
                     <div style="flex: 1; min-width: 0;">
-                        <h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED</h6>
+                        <h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED ({r_ovr})</h6>
                         {red_html}
                     </div>
                     <div style="flex: 1; min-width: 0;">
-                        <h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE</h6>
+                        <h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE ({b_ovr})</h6>
                         {blue_html}
                     </div>
                 </div>
