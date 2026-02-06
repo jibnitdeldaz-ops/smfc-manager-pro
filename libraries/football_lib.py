@@ -17,6 +17,9 @@ def extract_whatsapp_players(text):
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
 def clean_player_name(text):
+    """
+    Master Cleaner: Removes brackets, status codes, and extra spaces.
+    """
     text = re.sub(r'\s*\([tT]\)', '', text)
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
     text = re.sub(r'\s+[-–].*$', '', text)
@@ -32,27 +35,25 @@ def get_counts():
     smfc_count = 0
     if hasattr(st.session_state, 'master_db') and isinstance(st.session_state.master_db, pd.DataFrame):
         if 'Selected' in st.session_state.master_db.columns:
-            # Ensure boolean type for accurate summing
-            smfc_count = st.session_state.master_db['Selected'].astype(bool).sum()
+            # Force boolean conversion to ensure accurate sum
+            smfc_count = st.session_state.master_db['Selected'].fillna(False).astype(int).sum()
     guest_count = len(get_guests_list())
     return smfc_count, guest_count, smfc_count + guest_count
 
-def toggle_selection(player_name):
+def toggle_selection(idx):
     """
-    Updates the DB and forces a re-render of all checkboxes to ensure UI sync.
+    Updates DB by Row ID (Index) to prevent duplicate name issues.
     """
     if 'Selected' in st.session_state.master_db.columns:
-        # Find player index
-        idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
-        # Toggle Value
+        # Toggle boolean value directly at the index
         current_val = bool(st.session_state.master_db.at[idx, 'Selected'])
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         
-        # CRITICAL FIX: Increment version to force all checkboxes to regenerate.
-        # This prevents "stale" visual ticks that don't match the count.
-        if 'checklist_version' not in st.session_state:
-            st.session_state.checklist_version = 0
-        st.session_state.checklist_version += 1
+        # Clear related session keys to force UI refresh for this specific index
+        # This acts as a "hard reset" for the checkbox visual state
+        for key in list(st.session_state.keys()):
+            if f"chk_{idx}_" in key:
+                del st.session_state[key]
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -137,7 +138,6 @@ def calculate_leaderboard(df_matches, official_names):
     res['Form (Last 5)'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
 
-# --- 🧠 ALGORITHMIC BALANCING ---
 def calculate_player_score(row):
     stats = {
         'PAC': row.get('PAC', 70), 'SHO': row.get('SHO', 70),
@@ -157,14 +157,20 @@ def calculate_player_score(row):
     star_score = 45 + (star_r * 10)
     return round((weighted_avg * 0.6) + (star_score * 0.4), 1)
 
-# --- 📥 DATA LOADING ---
 def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
-        if 'Selected' not in df.columns: df['Selected'] = False
+        
+        # --- DATA CLEANING ON LOAD ---
+        # Ensure Selected is boolean False/True, no NaNs, no strings
+        if 'Selected' not in df.columns: 
+            df['Selected'] = False
+        else:
+            df['Selected'] = df['Selected'].fillna(False).astype(bool)
+            
         try: df_matches = conn.read(worksheet="Match_History", ttl=0, show_spinner=False)
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
@@ -182,18 +188,16 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- GLOBAL CSS (Neon & Readability) ---
+    # --- GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* --- NEON TYPOGRAPHY CLASSES --- */
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
 
-        /* --- READABILITY FIXES (White Inputs) --- */
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] {
             background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important;
         }
@@ -201,10 +205,7 @@ def run_football_app():
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         @media (max-width: 640px) { div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; } }
 
-        /* --- DEFAULT NEON WHITE LABELS --- */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
-        
-        /* --- METRICS & CARDS --- */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
@@ -236,11 +237,8 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
-    
-    # CRITICAL VERSIONING INIT
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
 
@@ -288,9 +286,10 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
-                # DYNAMIC KEY includes version to force refresh
-                key_id = f"chk_{row['Name']}_{t_n}_v{st.session_state.checklist_version}"
-                cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(row['Name'],))
+                # --- FIXED KEY SYSTEM: Use row INDEX (idx) instead of Name ---
+                # This guarantees uniqueness even if names are duplicate
+                key_id = f"chk_{idx}_{t_n}" 
+                cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(idx,))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
         with pos_tabs[1]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'FWD'], "fwd")
@@ -566,14 +565,12 @@ def run_football_app():
 
     with tab4:
         # 🔒 SECURE DATABASE VIEW
-        # 1. Try to get password from secrets
         try:
             admin_pw = st.secrets["passwords"]["admin"]
         except (FileNotFoundError, KeyError):
             st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
             st.stop()  # Stop execution if no secret is found
 
-        # 2. Check Input (No hardcoded fallback)
         if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
             st.success("✅ Access Granted")
             st.dataframe(st.session_state.master_db, use_container_width=True)
