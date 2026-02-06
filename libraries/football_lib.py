@@ -12,17 +12,11 @@ import base64
 
 # --- 🧮 HELPER FUNCTIONS ---
 def extract_whatsapp_players(text):
-    # Normalize invisible characters
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
-    # Extract lines starting with Number + Dot/Bracket
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
 def clean_player_name(text):
-    """
-    Master Cleaner: Removes brackets, status codes, and extra spaces.
-    Input: "Naveen (T)", "John - Late" -> Output: "Naveen", "John"
-    """
     text = re.sub(r'\s*\([tT]\)', '', text)
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
     text = re.sub(r'\s+[-–].*$', '', text)
@@ -459,6 +453,7 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
+                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -493,7 +488,8 @@ def run_football_app():
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
-                wa_txt = st.text_area("Paste WhatsApp Chat")
+                # Updated text area label to specific neon-white instruction
+                wa_txt = st.text_area("Paste the final full result with scoreline and team split")
                 if st.button("Parse"):
                     parsed = parse_match_log(wa_txt)
                     st.session_state.parsed_match_data = parsed
