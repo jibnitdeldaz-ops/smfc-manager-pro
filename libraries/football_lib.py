@@ -19,12 +19,10 @@ def get_img_as_base64(file):
     return ""
 
 def clean_whatsapp_name(text):
-    # 1. Remove invisible Unicode characters (Word Joiner, Zero Width Space, etc.)
+    # 1. Remove invisible Unicode characters & Non-breaking spaces
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
-    # 2. Remove leading numbers, dots, brackets, hyphens, and spaces
-    # Example: "10. ⁠krithik" -> "krithik"
+    # 2. Remove leading numbers, dots, brackets (e.g., "1. ", "10) ")
     text = re.sub(r'^[\d\.\)\-\s]+', '', text)
-    # 3. Final trim
     return text.strip()
 
 def get_guests_list():
@@ -40,10 +38,18 @@ def get_counts():
     return smfc_count, guest_count, smfc_count + guest_count
 
 def toggle_selection(player_name):
+    # 1. Update Database
     if 'Selected' in st.session_state.master_db.columns:
         idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
+        # Flip the value
         current_val = st.session_state.master_db.at[idx, 'Selected']
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
+        
+        # 2. SYNC FIX: Wipe widget memory for this player in ALL tabs
+        # This forces 'chk_Jibin_fwd' to re-read the DB if 'chk_Jibin_all' was clicked
+        for key in list(st.session_state.keys()):
+            if key.startswith(f"chk_{player_name}_"):
+                del st.session_state[key]
 
 # --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
@@ -155,23 +161,15 @@ def run_football_app():
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* 1. INPUTS (DEFAULT DARK THEME) */
+        /* 1. INPUTS */
         input { color: #ffffff !important; }
         div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {
              background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important;
         }
         
-        /* 2. TEXTAREA (SPECIAL: BLACK TEXT ON WHITE BG for PASTE) */
-        textarea {
-            background-color: #ffffff !important;
-            color: #000000 !important;
-            font-weight: bold !important;
-            border-radius: 8px !important;
-        }
-        div[data-baseweb="textarea"] > div {
-            background-color: #ffffff !important;
-            border: 1px solid #ccc !important;
-        }
+        /* 2. TEXTAREA */
+        textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
+        div[data-baseweb="textarea"] > div { background-color: #ffffff !important; border: 1px solid #ccc !important; }
 
         /* LABELS & METRICS */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
@@ -217,7 +215,7 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
-        # --- PASTE LOGIC WITH AGGRESSIVE FIXES ---
+        # --- PASTE LOGIC (FIXED) ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -229,12 +227,16 @@ def run_football_app():
                     lines = whatsapp_text.split('\n')
                     
                     for line in lines:
+                        # CRITICAL FIX: Only process lines starting with digit
+                        if not re.match(r'^\d', line.strip()):
+                            continue 
+                            
                         clean_line = clean_whatsapp_name(line)
                         if len(clean_line) < 2: continue
                         
                         match = False
                         for idx, row in st.session_state.master_db.iterrows():
-                            # CLEAN BOTH SIDES FOR COMPARISON (Handles SANIL vs Sanil)
+                            # CLEAN BOTH SIDES FOR COMPARISON
                             db_name = str(row['Name']).strip().lower()
                             input_name = clean_line.lower()
                             
@@ -245,18 +247,18 @@ def run_football_app():
                                 break
                         if not match: new_guests.append(clean_line)
                     
-                    # Update guest list safely
+                    # Update guest list
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
                     
-                    # --- CRITICAL: RESET CHECKBOXES ---
+                    # --- SYNC FIX: Wipe all checkboxes to force update ---
                     for key in list(st.session_state.keys()):
                         if key.startswith("chk_"):
                             del st.session_state[key]
                             
-                    st.toast(f"✅ Selected {found_count} players from list!")
+                    st.toast(f"✅ Found {found_count} players. Guest list updated!")
                     st.rerun()
                 else: st.error("DB Offline")
 
@@ -266,6 +268,7 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
+                # Ensure value comes from DB
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}_{t_n}", on_change=toggle_selection, args=(row['Name'],))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
