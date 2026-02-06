@@ -48,6 +48,52 @@ def toggle_selection(player_name):
             if key.startswith(f"chk_{player_name}_"):
                 del st.session_state[key]
 
+# --- 🧠 ALGORITHMIC BALANCING HELPERS ---
+def calculate_player_score(row):
+    """
+    Calculates a single 'Power Score' (0-100) based on Position weights + Star Rating.
+    """
+    # 1. Base Stats (Default to 70 if missing)
+    stats = {
+        'PAC': row.get('PAC', 70), 'SHO': row.get('SHO', 70),
+        'PAS': row.get('PAS', 70), 'DRI': row.get('DRI', 70),
+        'DEF': row.get('DEF', 70), 'PHY': row.get('PHY', 70)
+    }
+    # Clean NaN
+    for k, v in stats.items():
+        if pd.isna(v) or v == '': stats[k] = 70
+        else: stats[k] = float(v)
+
+    pos = row.get('Position', 'MID')
+    
+    # 2. Positional Weights (What matters for this role?)
+    if pos == 'FWD':
+        # Shooting, Dribbling, Pace are king
+        weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + 
+                        stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
+    elif pos == 'DEF':
+        # Defending, Physical, Pace (recovery)
+        weighted_avg = (stats['DEF']*0.35 + stats['PHY']*0.25 + stats['PAC']*0.15 + 
+                        stats['PAS']*0.15 + stats['DRI']*0.05 + stats['SHO']*0.05)
+    else: # MID (Box to Box)
+        # Balanced, slightly favored passing
+        weighted_avg = (stats['PAS']*0.25 + stats['DRI']*0.2 + stats['DEF']*0.15 + 
+                        stats['SHO']*0.15 + stats['PAC']*0.15 + stats['PHY']*0.1)
+
+    # 3. Star Rating Impact (The "Manager's Eye")
+    # If StarRating exists (1-5), it counts for 40% of the score.
+    # We map 1-5 stars to 50-90 range approx.
+    star_r = row.get('StarRating', 3)
+    if pd.isna(star_r) or star_r == '': star_r = 3
+    star_r = float(star_r)
+    
+    # Map 1->55, 2->65, 3->75, 4->85, 5->95
+    star_score = 45 + (star_r * 10)
+    
+    # Final Score: 60% Stats, 40% Stars
+    final_score = (weighted_avg * 0.6) + (star_score * 0.4)
+    return round(final_score, 1)
+
 # --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
     data = {}
@@ -123,21 +169,14 @@ def load_data():
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
     except Exception as e:
-        dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
+        # Fallback dummy with StarRating
+        dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY", "StarRating"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (SPACED OUT) ---
+# --- 📌 PRESETS ---
 formation_presets = {
-    "9 vs 9": {
-        "limit": 9,
-        "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)],
-        "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]
-    },
-    "7 vs 7": {
-        "limit": 7,
-        "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)],
-        "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]
-    },
+    "9 vs 9": {"limit": 9, "RED_COORDS": [(10, 20), (10, 50), (10, 80), (30, 15), (30, 38), (30, 62), (30, 85), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 20), (90, 50), (90, 80), (70, 15), (70, 38), (70, 62), (70, 85), (55, 35), (55, 65)]},
+    "7 vs 7": {"limit": 7, "RED_COORDS": [(10, 30), (10, 70), (30, 20), (30, 50), (30, 80), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 20), (70, 50), (70, 80), (55, 35), (55, 65)]},
     "6 vs 6": {"limit": 6, "RED_COORDS": [(10, 30), (10, 70), (30, 30), (30, 70), (45, 35), (45, 65)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 30), (70, 70), (55, 35), (55, 65)]},
     "5 vs 5": {"limit": 5, "RED_COORDS": [(10, 30), (10, 70), (30, 50), (45, 30), (45, 70)], "BLUE_COORDS": [(90, 30), (90, 70), (70, 50), (55, 30), (55, 70)]}
 }
@@ -150,7 +189,6 @@ def run_football_app():
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
-        /* WIDGET STYLING */
         input { color: #ffffff !important; }
         div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { 
             background-color: rgba(255,255,255,0.08) !important; 
@@ -158,8 +196,7 @@ def run_football_app():
             color: white !important;
         }
         
-        /* MOBILE COLUMN OPTIMIZATION (Safe Version) */
-        /* This allows columns to fit side-by-side if possible, but doesn't force bad scaling */
+        /* MOBILE COLUMN OPTIMIZATION */
         @media (max-width: 640px) {
             div[data-testid="column"] {
                 min-width: 0 !important;
@@ -167,22 +204,17 @@ def run_football_app():
                 padding-left: 2px !important;
                 padding-right: 2px !important;
             }
-            /* Reduce padding inside dropdowns to save width, but keep font normal */
             div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
         }
 
         textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
         div[data-baseweb="textarea"] > div { background-color: #ffffff !important; border: 1px solid #ccc !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
-        
-        /* METRICS & BADGES */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
-        
-        /* BUTTONS & CARDS */
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
@@ -190,15 +222,12 @@ def run_football_app():
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
-        
-        /* ANALYTICS */
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
         .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; text-shadow: 0 0 10px rgba(255,255,255,0.7); margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .lb-card { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-left: 4px solid #FF5722; border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
         .lb-winrate { font-size: 20px; font-weight: 900; color: #00E676; text-align: right; }
-        
         .guest-row-label { color: #FFD700; font-weight: 800; font-size: 15px; text-transform: uppercase; text-shadow: 0 0 5px rgba(255, 215, 0, 0.5); display: flex; align-items: center; height: 100%; padding-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
     </style>
@@ -282,7 +311,6 @@ def run_football_app():
             st.write("---")
             st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
             for g_name in guests:
-                # [Name(3.5), Pos(2), Stars(2.5)] - Good balance for mobile
                 c_name, c_pos, c_lvl = st.columns([3.5, 2, 2.5])
                 with c_name: st.markdown(f"<div class='guest-row-label'>{g_name}</div>", unsafe_allow_html=True)
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
@@ -292,7 +320,6 @@ def run_football_app():
         with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
-                # [Player(3.5), Pos(2), Btn(2.5)]
                 c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2.5])
                 with c_p_sel:
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
@@ -321,20 +348,65 @@ def run_football_app():
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
                 active = st.session_state.master_db[st.session_state.master_db['Selected'] == True].copy()
+                
+                # 1. PROCESS GUESTS
                 guest_rows = []
-                star_map = {"⭐": 50, "⭐⭐": 60, "⭐⭐⭐": 70, "⭐⭐⭐⭐": 80, "⭐⭐⭐⭐⭐": 90}
+                star_map = {"⭐": 1, "⭐⭐": 2, "⭐⭐⭐": 3, "⭐⭐⭐⭐": 4, "⭐⭐⭐⭐⭐": 5}
                 for g in get_guests_list():
                     chosen_pos = st.session_state.get(f"g_pos_{g}", "MID")
                     chosen_stars = st.session_state.get(f"g_lvl_{g}", "⭐⭐⭐")
-                    rating = star_map.get(chosen_stars, 70)
-                    guest_rows.append({"Name": g, "Position": chosen_pos, "PAC": rating, "SHO": rating, "PAS": rating, "DRI": rating, "DEF": rating, "PHY": rating})
+                    rating_val = star_map.get(chosen_stars, 3)
+                    guest_rows.append({
+                        "Name": g, "Position": chosen_pos, "StarRating": rating_val,
+                        "PAC":70,"SHO":70,"PAS":70,"DRI":70,"DEF":70,"PHY":70
+                    })
                 if guest_rows: active = pd.concat([active, pd.DataFrame(guest_rows)], ignore_index=True)
+                
                 if not active.empty:
-                    active['OVR'] = active[['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']].mean(axis=1)
-                    active['Sort_OVR'] = active['OVR'] + np.random.uniform(-3.0, 3.0, size=len(active))
-                    active = active.sort_values('Sort_OVR', ascending=False).reset_index(drop=True)
-                    active['Team'] = ["Red" if i % 4 in [0, 3] else "Blue" for i in range(len(active))]
-                    st.session_state.match_squad = active
+                    # 2. CALCULATE POWER SCORES
+                    active['Power'] = active.apply(calculate_player_score, axis=1)
+                    
+                    # 3. SMART BALANCING ALGORITHM (SNAKE DRAFT)
+                    active = active.sort_values(['Position', 'Power'], ascending=[True, False])
+                    
+                    # Buckets
+                    gks = active[active['Position'] == 'GK'].sort_values('Power', ascending=False)
+                    defs = active[active['Position'] == 'DEF'].sort_values('Power', ascending=False)
+                    mids = active[active['Position'] == 'MID'].sort_values('Power', ascending=False)
+                    fwds = active[active['Position'] == 'FWD'].sort_values('Power', ascending=False)
+                    
+                    red_team, blue_team = [], []
+                    red_score, blue_score = 0, 0
+                    
+                    # Snake Draft Function
+                    turn = 0 # 0=Red, 1=Blue
+                    def draft_players(pool):
+                        nonlocal turn, red_score, blue_score
+                        for _, p in pool.iterrows():
+                            # Auto-balance: If one team is way stronger/larger, give to other
+                            if len(red_team) > len(blue_team) + 1: turn = 1
+                            elif len(blue_team) > len(red_team) + 1: turn = 0
+                            
+                            if turn == 0:
+                                red_team.append(p); red_score += p['Power']; turn = 1
+                            else:
+                                blue_team.append(p); blue_score += p['Power']; turn = 0
+                    
+                    # Draft Order: GK -> DEF -> MID -> FWD
+                    draft_players(gks)
+                    draft_players(defs)
+                    draft_players(mids)
+                    draft_players(fwds)
+                    
+                    # Convert to DataFrame
+                    df_red = pd.DataFrame(red_team); df_red['Team'] = 'Red'
+                    df_blue = pd.DataFrame(blue_team); df_blue['Team'] = 'Blue'
+                    
+                    # Final Squad
+                    st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
+                    st.session_state.red_ovr = int(df_red['Power'].mean()) if not df_red.empty else 0
+                    st.session_state.blue_ovr = int(df_blue['Power'].mean()) if not df_blue.empty else 0
+                    
                     st.rerun()
             else: st.error("Database offline.")
 
@@ -343,6 +415,9 @@ def run_football_app():
             st.session_state.match_squad['Pos_Ord'] = st.session_state.match_squad['Position'].map(pos_map).fillna(4)
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
+            
+            r_ovr = st.session_state.get('red_ovr', 0)
+            b_ovr = st.session_state.get('blue_ovr', 0)
 
             # --- MOBILE SIDE-BY-SIDE VIEW (FLEXBOX) ---
             red_html = ""
@@ -357,12 +432,12 @@ def run_football_app():
                 <div style="color:#FF5722; font-weight:bold; font-size:18px; margin-bottom: 10px;">LINEUPS</div>
                 <div style="display: flex; gap: 8px;">
                     <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#ff4b4b; text-align:center; margin:0 0 10px 0; font-size:16px;'>RED</h4>
+                        <h4 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0; font-size:16px;'>RED <span style='font-size:12px; color:#aaa;'>({r_ovr})</span></h4>
                         {red_html}
                     </div>
                     <div style="width: 1px; background: rgba(255,255,255,0.1);"></div>
                     <div style="flex: 1; min-width: 0;">
-                        <h4 style='color:#1c83e1; text-align:center; margin:0 0 10px 0; font-size:16px;'>BLUE</h4>
+                        <h4 style='color:#1c83e1; text-align:center; margin:0 0 5px 0; font-size:16px;'>BLUE <span style='font-size:12px; color:#aaa;'>({b_ovr})</span></h4>
                         {blue_html}
                     </div>
                 </div>
@@ -370,7 +445,7 @@ def run_football_app():
             """, unsafe_allow_html=True)
             
             r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
-            summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
+            summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
@@ -395,6 +470,13 @@ def run_football_app():
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
                     st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
+                    
+                    # Update OVRs after swap
+                    reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
+                    blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
+                    st.session_state.red_ovr = int(reds['Power'].mean())
+                    st.session_state.blue_ovr = int(blues['Power'].mean())
+                    
                     st.rerun()
             
             if st.session_state.transfer_log:
