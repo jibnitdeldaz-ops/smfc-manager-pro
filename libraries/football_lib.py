@@ -4,7 +4,7 @@ import numpy as np
 from streamlit_gsheets import GSheetsConnection
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
-from datetime import datetime
+from datetime import datetime, timedelta  # <--- FIXED IMPORT HERE
 import streamlit.components.v1 as components
 import re
 import os
@@ -50,7 +50,6 @@ def toggle_selection(idx):
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         
         # Clear related session keys to force UI refresh for this specific index
-        # This acts as a "hard reset" for the checkbox visual state
         for key in list(st.session_state.keys()):
             if f"chk_{idx}_" in key:
                 del st.session_state[key]
@@ -237,8 +236,11 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
+    
+    # CRITICAL VERSIONING INIT
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
 
@@ -288,7 +290,7 @@ def run_football_app():
             for i, (idx, row) in enumerate(df_s.iterrows()):
                 # --- FIXED KEY SYSTEM: Use row INDEX (idx) instead of Name ---
                 # This guarantees uniqueness even if names are duplicate
-                key_id = f"chk_{idx}_{t_n}" 
+                key_id = f"chk_{idx}_{t_n}_v{st.session_state.checklist_version}"
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(idx,))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
@@ -565,12 +567,14 @@ def run_football_app():
 
     with tab4:
         # 🔒 SECURE DATABASE VIEW
+        # 1. Try to get password from secrets
         try:
             admin_pw = st.secrets["passwords"]["admin"]
         except (FileNotFoundError, KeyError):
             st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
             st.stop()  # Stop execution if no secret is found
 
+        # 2. Check Input (No hardcoded fallback)
         if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
             st.success("✅ Access Granted")
             st.dataframe(st.session_state.master_db, use_container_width=True)
