@@ -32,7 +32,7 @@ def clean_player_name(text):
     Input: "Naveen (T)", "John - Late", "Rob [GK]"
     Output: "Naveen", "John", "Rob"
     """
-    # 1. Remove (...) or [...] or { ... } or full-width
+    # 1. Remove (...) or [...] or { ... } or full-width brackets
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
     # 2. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
@@ -230,7 +230,6 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
@@ -257,26 +256,17 @@ def run_football_app():
                     new_guests = []
                     found_count = 0
                     
-                    # 1. Get raw lines
                     raw_lines = extract_whatsapp_players(whatsapp_text)
                     
                     for line in raw_lines:
                         match = False
-                        # 2. CLEAN FIRST (Aggressive clean to remove (T))
+                        # CLEAN INPUT AND DB NAME AGGRESSIVELY
                         clean_input = clean_player_name(line).lower()
-                        
                         for idx, row in st.session_state.master_db.iterrows():
-                            db_name = str(row['Name']).strip().lower()
-                            # 3. Exact match check
+                            db_name = clean_player_name(str(row['Name'])).lower()
                             if db_name == clean_input:
-                                st.session_state.master_db.at[idx, 'Selected'] = True
-                                match = True
-                                found_count += 1
-                                break
-                        
-                        # 4. IF NO MATCH -> Add the cleaned name
-                        if not match: 
-                            new_guests.append(clean_player_name(line))
+                                st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
+                        if not match: new_guests.append(clean_player_name(line))
                     
                     current = get_guests_list()
                     for g in new_guests:
@@ -284,8 +274,7 @@ def run_football_app():
                     st.session_state.guest_input_val = ", ".join(current)
                     
                     st.session_state.checklist_version += 1
-                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!")
-                    st.rerun()
+                    st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
                 else: st.error("DB Offline")
 
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
@@ -343,7 +332,6 @@ def run_football_app():
                         st.session_state.checklist_version += 1
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
-                
                 if st.session_state.position_changes:
                     st.write("")
                     for change in st.session_state.position_changes:
