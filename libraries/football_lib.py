@@ -26,7 +26,6 @@ def extract_whatsapp_players(text):
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text)
     
     # 2. Find all matches of "1. Name" or "1) Name"
-    # Matches: Newline -> Number -> Dot/Paren -> Name
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
     
     # 3. Clean up the captured names
@@ -34,7 +33,6 @@ def extract_whatsapp_players(text):
     return cleaned_names
 
 def clean_name_simple(text):
-    # Helper to clean DB names for comparison
     return re.sub(r'[\u200b\u2060\ufeff\xa0]', '', text).strip()
 
 def get_guests_list():
@@ -54,10 +52,6 @@ def toggle_selection(player_name):
         idx = st.session_state.master_db[st.session_state.master_db['Name'] == player_name].index[0]
         current_val = st.session_state.master_db.at[idx, 'Selected']
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
-        # Wipe widget memory for this player to prevent state sync issues
-        for key in list(st.session_state.keys()):
-            if key.startswith(f"chk_{player_name}_"):
-                del st.session_state[key]
 
 # --- 🧠 ANALYTICS HELPERS ---
 def parse_whatsapp_log(text):
@@ -137,7 +131,7 @@ def load_data():
         dummy_df = pd.DataFrame(columns=["Name", "Position", "Selected", "PAC", "SHO", "PAS", "DRI", "DEF", "PHY"])
         return conn, dummy_df, pd.DataFrame()
 
-# --- 📌 PRESETS (3-4-2) ---
+# --- 📌 PRESETS ---
 formation_presets = {
     "9 vs 9": {"limit": 9, "RED_COORDS": [(15, 20), (15, 50), (15, 80), (35, 15), (35, 38), (35, 62), (35, 85), (55, 35), (55, 65)], "BLUE_COORDS": [(85, 20), (85, 50), (85, 80), (65, 15), (65, 38), (65, 62), (65, 85), (45, 35), (45, 65)]},
     "7 vs 7": {"limit": 7, "RED_COORDS": [(15, 30), (15, 70), (35, 20), (35, 50), (35, 80), (55, 35), (55, 65)], "BLUE_COORDS": [(85, 30), (85, 70), (65, 20), (65, 50), (65, 80), (45, 35), (45, 65)]},
@@ -188,15 +182,17 @@ def run_football_app():
 
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # Logs
+    # Logs & Versioning
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
+    if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
         st.session_state.position_changes = [] 
         st.session_state.transfer_log = []
+        st.session_state.checklist_version = 0
         st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
@@ -205,7 +201,7 @@ def run_football_app():
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
-        # --- PASTE LOGIC (ROBUST) ---
+        # --- PASTE LOGIC ---
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -215,30 +211,23 @@ def run_football_app():
                     found_count = 0
                     
                     extracted_names = extract_whatsapp_players(whatsapp_text)
-                    
                     for clean_line in extracted_names:
                         match = False
                         for idx, row in st.session_state.master_db.iterrows():
-                            # Compare lowercase, cleaned names
-                            db_name = clean_name_simple(str(row['Name'])).lower()
-                            input_name = clean_name_simple(clean_line).lower()
-                            
-                            if db_name == input_name:
+                            if clean_name_simple(str(row['Name'])).lower() == clean_name_simple(clean_line).lower():
                                 st.session_state.master_db.at[idx, 'Selected'] = True
                                 match = True
                                 found_count += 1
                                 break
-                        if not match: 
-                            new_guests.append(clean_line)
+                        if not match: new_guests.append(clean_line)
                     
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
                     
-                    # Wipe widget state
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("chk_"): del st.session_state[key]
+                    # FORCE RESET CHECKBOXES
+                    st.session_state.checklist_version += 1
                         
                     st.toast(f"✅ Found {found_count} players from DB. {len(new_guests)} guests added!")
                     st.rerun()
@@ -250,7 +239,10 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
-                cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=f"chk_{row['Name']}_{t_n}", on_change=toggle_selection, args=(row['Name'],))
+                # VERSIONED KEY: This guarantees the widget is re-created if version changes
+                # This fixes the "Disappearing Player" bug when moving between tabs (MID->DEF)
+                key_id = f"chk_{row['Name']}_{t_n}_v{st.session_state.checklist_version}"
+                cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(row['Name'],))
         
         with pos_tabs[0]: render_checklist(st.session_state.master_db, "all")
         with pos_tabs[1]: render_checklist(st.session_state.master_db[st.session_state.master_db['Position'] == 'FWD'], "fwd")
@@ -294,16 +286,12 @@ def run_football_app():
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
                         old_pos = st.session_state.master_db.at[idx, 'Position']
                         
-                        # ATOMIC UPDATE: Force Position & Selection Status
+                        # UPDATE AND FORCE SELECTED
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
                         st.session_state.master_db.at[idx, 'Selected'] = True 
                         
-                        # CRITICAL BUG FIX: NUKE WIDGET MEMORY FOR THIS PLAYER
-                        # If we don't do this, Streamlit remembers the "Old" checkbox state (associated with old position tab)
-                        # and might de-select them on rerun.
-                        for key in list(st.session_state.keys()):
-                            if key.startswith(f"chk_{p_name_clean}_"):
-                                del st.session_state[key]
+                        # INCREMENT VERSION TO REFRESH ALL CHECKBOXES
+                        st.session_state.checklist_version += 1
 
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
@@ -378,11 +366,9 @@ def run_football_app():
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"
                     st.session_state.match_squad.at[idx_b, "Team"] = "Red"
-                    # ADD TO TRANSFER LOG
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
                     st.rerun()
             
-            # --- SHOW TRANSFER LOG ---
             if st.session_state.transfer_log:
                 st.write("")
                 for log in st.session_state.transfer_log:
