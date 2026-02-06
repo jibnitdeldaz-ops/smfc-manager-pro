@@ -243,6 +243,32 @@ def run_football_app():
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
 
+        # --- NEW: EDIT PLAYER POSITIONS (SESSION ONLY) ---
+        with st.expander("🛠️ EDIT PLAYER POSITIONS (Session Only)", expanded=False):
+            # Only list players who are selected
+            selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
+            if not selected_players.empty:
+                c_p_sel, c_p_pos, c_p_btn = st.columns([3, 2, 2])
+                with c_p_sel:
+                    # Dropdown of name (Current Pos)
+                    p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
+                    p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
+                with c_p_pos:
+                    new_pos = st.selectbox("New Position", ["FWD", "MID", "DEF", "GK"], key="edit_pos_new")
+                with c_p_btn:
+                    st.write("") # Spacer
+                    st.write("")
+                    if st.button("UPDATE POS", key="btn_update_pos"):
+                        # Extract name
+                        p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
+                        # Update DB in Session State
+                        idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
+                        st.session_state.master_db.at[idx, 'Position'] = new_pos
+                        st.toast(f"✅ Updated {p_name_clean} to {new_pos}")
+                        st.rerun()
+            else:
+                st.info("Select players first to edit their positions.")
+
         st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
@@ -285,7 +311,6 @@ def run_football_app():
             summary = f"Date: {match_date.strftime('%d %b')} | {match_time.strftime('%I:%M %p')}\nVenue: {venue}\n\n🔵 *BLUE TEAM*\n{b_list}\n\n🔴 *RED TEAM*\n{r_list}"
             components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
 
-            # --- TRANSFER WINDOW UPDATED ---
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
             
