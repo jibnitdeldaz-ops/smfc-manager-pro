@@ -55,7 +55,8 @@ def toggle_selection(player_name):
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
     """
-    Parses WhatsApp match summary for Date, Score, Teams, etc.
+    Parses WhatsApp match summary.
+    Auto-formats Date to YYYY-MM-DD for database consistency.
     """
     data = {
         "Date": datetime.today().strftime('%Y-%m-%d'),
@@ -72,9 +73,26 @@ def parse_match_log(text):
     }
     
     try:
-        # Metadata
+        # 1. Date Extraction & Formatting (e.g., "Saturday, 07 Feb" -> "2026-02-07")
         date_match = re.search(r'Date:\s*(.*)', text, re.IGNORECASE)
-        if date_match: data['Date'] = date_match.group(1).strip()
+        if date_match: 
+            raw_date = date_match.group(1).strip()
+            try:
+                # Try parsing "Saturday, 07 Feb"
+                # Remove day name if comma exists to simplify parsing
+                if ',' in raw_date:
+                    clean_date_str = raw_date.split(',', 1)[1].strip() # "07 Feb"
+                else:
+                    clean_date_str = raw_date
+                
+                # Parse "07 Feb" or similar
+                dt_obj = datetime.strptime(clean_date_str, "%d %b")
+                # Apply current year (or next year if month is earlier than current month? keeping simple for now)
+                dt_obj = dt_obj.replace(year=datetime.now().year)
+                data['Date'] = dt_obj.strftime("%Y-%m-%d")
+            except:
+                # Fallback: keep raw string if parsing fails, but warn user
+                data['Date'] = raw_date
         
         time_match = re.search(r'Time:\s*(.*)', text, re.IGNORECASE)
         if time_match: data['Time'] = time_match.group(1).strip()
@@ -82,12 +100,6 @@ def parse_match_log(text):
         venue_match = re.search(r'(?:Ground|Venue):\s*(.*)', text, re.IGNORECASE)
         if venue_match: data['Venue'] = venue_match.group(1).strip()
         
-        cost_match = re.search(r'Cost.*:\s*(\d+)', text, re.IGNORECASE)
-        if cost_match: data['Cost'] = int(cost_match.group(1))
-        
-        late_match = re.search(r'LateFee:\s*(\d+)', text, re.IGNORECASE)
-        if late_match: data['LateFee'] = int(late_match.group(1))
-
         # Scores (Blue 5-4 Red)
         score_match = re.search(r'Score:.*?Blue\s*(\d+)\s*[-v]\s*(\d+)\s*Red', text, re.IGNORECASE)
         if score_match:
@@ -116,7 +128,8 @@ def parse_match_log(text):
                 names = []
                 for line in block.split('\n'):
                     line = line.strip()
-                    if len(line) > 2 and not line.lower().startswith("we had"):
+                    # Filter out headers/scores inside the block if any
+                    if len(line) > 2 and not line.lower().startswith("we had") and not any(char.isdigit() for char in line):
                         names.append(clean_player_name(line))
                 return ", ".join(names)
 
@@ -168,6 +181,7 @@ def calculate_player_score(row):
         except: stats[k] = 70.0
 
     pos = row.get('Position', 'MID')
+    
     if pos == 'FWD':
         weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
     elif pos == 'DEF':
@@ -206,19 +220,39 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
+    # --- GLOBAL CSS FIXES ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
-        input { color: #ffffff !important; }
-        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; }
+        
+        /* 1. FORCE INPUTS WHITE BACKGROUND & BLACK TEXT */
+        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border-radius: 5px !important;
+        }
+        /* Ensure typed text is visible */
+        div[data-baseweb="base-input"] input {
+            color: #000000 !important;
+            -webkit-text-fill-color: #000000 !important;
+            font-weight: bold !important;
+        }
+        
+        /* 2. DROPDOWN FIXES */
+        div[data-baseweb="select"] div {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+        
         @media (max-width: 640px) {
             div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
-            div[data-baseweb="select"] div { padding-left: 4px !important; padding-right: 4px !important; }
         }
-        textarea { background-color: #ffffff !important; color: #000000 !important; font-weight: bold !important; border-radius: 8px !important; }
-        div[data-baseweb="textarea"] > div { background-color: #ffffff !important; border: 1px solid #ccc !important; }
+
+        /* 3. HEADERS */
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; font-weight: 800 !important; text-transform: uppercase; text-shadow: 0 0 8px rgba(255,255,255,0.6); font-size: 14px !important; }
+        
+        /* 4. METRICS & CARDS */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
@@ -349,9 +383,7 @@ def run_football_app():
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 if st.session_state.position_changes:
-                    st.write("")
-                    for change in st.session_state.position_changes:
-                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
+                    st.write(""); for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
 
         st.write(""); 
@@ -436,9 +468,7 @@ def run_football_app():
                     st.session_state.red_ovr = int(r_p['Power'].mean()); st.session_state.blue_ovr = int(b_p['Power'].mean())
                     st.rerun()
             if st.session_state.transfer_log:
-                st.write("")
-                for log in st.session_state.transfer_log:
-                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -475,6 +505,7 @@ def run_football_app():
                 if not subs_r and not subs_b: st.info("No Subs")
                 
                 # Side-by-Side on Tact Board too
+                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 red_html = ""; blue_html = ""
                 for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
                 for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -518,7 +549,7 @@ def run_football_app():
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
                     c_d, c_t, c_v = st.columns(3)
-                    new_date = c_d.text_input("Date", pm['Date'])
+                    new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
                     
@@ -529,20 +560,25 @@ def run_football_app():
                     new_blue = st.text_area("Blue Team (Comma Sep)", pm['Team_Blue'])
                     new_red = st.text_area("Red Team (Comma Sep)", pm['Team_Red'])
                     
-                    c_cost, c_late = st.columns(2)
-                    new_cost = c_cost.number_input("Cost", value=pm.get('Cost', 0))
-                    new_late = c_late.number_input("Late Fee", value=pm.get('LateFee', 0))
-                    
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
-                        if save_pass == "1234":
-                            # Create new row
+                        # Retrieve password from secrets, handle potential missing key
+                        try:
+                            admin_pw = st.secrets["passwords"]["admin"]
+                        except:
+                            admin_pw = "1234" # Fallback if secrets.toml is missing locally
+                            
+                        if save_pass == admin_pw:
+                            # Create new row (EXCLUDING Time, Cost, Gpay, LateFee)
                             new_row = pd.DataFrame([{
-                                "Date": new_date, "Time": new_time, "Venue": new_venue,
-                                "Score_Blue": new_score_b, "Score_Red": new_score_r,
+                                "Date": new_date,
+                                "Score_Blue": new_score_b,
+                                "Score_Red": new_score_r,
                                 "Winner": "Blue" if new_score_b > new_score_r else ("Red" if new_score_r > new_score_b else "Draw"),
-                                "Team_Blue": new_blue, "Team_Red": new_red,
-                                "Cost": new_cost, "Gpay": pm.get('Gpay',''), "LateFee": new_late
+                                "Team_Blue": new_blue,
+                                "Team_Red": new_red,
+                                # Ensure missing columns don't break append if they exist in sheet
+                                "Time": "", "Venue": new_venue, "Cost": 0, "Gpay": "", "LateFee": 0
                             }])
                             # Update DB
                             try:
