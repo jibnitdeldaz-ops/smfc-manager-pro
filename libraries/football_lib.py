@@ -19,15 +19,28 @@ def get_img_as_base64(file):
     return ""
 
 def extract_whatsapp_players(text):
+    # 1. Nuke invisible characters globally
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
+    # 2. Find lines starting with Number + Dot/Bracket
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
+    # 3. Strip whitespace
     return [m.strip() for m in matches if len(m.strip()) > 1]
 
 def clean_player_name(text):
+    """
+    Master Cleaner: Removes brackets, status codes, and extra spaces.
+    Input: "Naveen (T)", "John - Late"
+    Output: "Naveen", "John"
+    """
+    # 1. Explicitly remove (T) or (t) first
     text = re.sub(r'\s*\([tT]\)', '', text)
+    # 2. Remove any other brackets
     text = re.sub(r'\s*[\(\[\{（].*?[\)\]\}）]', '', text)
+    # 3. Remove hyphenated status like " - Late"
     text = re.sub(r'\s+[-–].*$', '', text)
+    # 4. Remove loose "T" or "G" at the end (e.g. "Naveen T")
     text = re.sub(r'\s+[tTgG]$', '', text)
+    # 5. Remove common status words
     text = re.sub(r'\s+(?:tentative|late|maybe|confirm|guest|paid)\b.*$', '', text, flags=re.IGNORECASE)
     return text.strip()
 
@@ -52,85 +65,39 @@ def toggle_selection(player_name):
             if key.startswith(f"chk_{player_name}_"):
                 del st.session_state[key]
 
-# --- 🧠 ANALYTICS & PARSING HELPERS ---
-def parse_match_log(text):
-    """
-    Parses the full match log with Score, Date, Cost, and Teams.
-    """
-    data = {
-        "Date": datetime.today().strftime('%Y-%m-%d'),
-        "Time": "00:00",
-        "Venue": "BFC",
-        "Score_Blue": 0,
-        "Score_Red": 0,
-        "Winner": "Draw",
-        "Team_Blue": "",
-        "Team_Red": "",
-        "Cost": 0,
-        "Gpay": "",
-        "LateFee": 0
-    }
-    
+# --- 🧠 ANALYTICS HELPERS ---
+def parse_whatsapp_log(text):
+    data = {}
     try:
-        # 1. Metadata extraction
-        date_match = re.search(r'Date:\s*(.*)', text, re.IGNORECASE)
-        if date_match: data['Date'] = date_match.group(1).strip()
-        
-        time_match = re.search(r'Time:\s*(.*)', text, re.IGNORECASE)
-        if time_match: data['Time'] = time_match.group(1).strip()
-        
-        venue_match = re.search(r'(?:Ground|Venue):\s*(.*)', text, re.IGNORECASE)
-        if venue_match: data['Venue'] = venue_match.group(1).strip()
-        
-        cost_match = re.search(r'Cost.*:\s*(\d+)', text, re.IGNORECASE)
-        if cost_match: data['Cost'] = int(cost_match.group(1))
-        
-        late_match = re.search(r'LateFee:\s*(\d+)', text, re.IGNORECASE)
-        if late_match: data['LateFee'] = int(late_match.group(1))
-
-        # 2. Score Extraction (Blue 5-4 Red)
-        score_match = re.search(r'Score:.*?Blue\s*(\d+)\s*[-v]\s*(\d+)\s*Red', text, re.IGNORECASE)
+        venue_match = re.search(r'🏟️\s*(.*)', text)
+        data['venue'] = venue_match.group(1).strip() if venue_match else "BFC"
+        score_match = re.search(r'Score.*?:.*?(\d+)\s*[-v]\s*(\d+)', text, re.IGNORECASE)
         if score_match:
-            b_score = int(score_match.group(1))
-            r_score = int(score_match.group(2))
-            data['Score_Blue'] = b_score
-            data['Score_Red'] = r_score
-            if b_score > r_score: data['Winner'] = "Blue"
-            elif r_score > b_score: data['Winner'] = "Red"
-            else: data['Winner'] = "Draw"
-
-        # 3. Team Extraction
-        # Split by Blue/Red markers
-        # Assumes format: 🔵 BLUE TEAM ... 🔴 RED TEAM ...
-        # Normalize text first
-        clean_text = text.replace('*', '')
-        
-        blue_start = re.search(r'🔵.*?BLUE TEAM', clean_text, re.IGNORECASE)
-        red_start = re.search(r'🔴.*?RED TEAM', clean_text, re.IGNORECASE)
-        
-        if blue_start and red_start:
-            # Determine order
-            if blue_start.start() < red_start.start():
-                blue_block = clean_text[blue_start.end():red_start.start()]
-                red_block = clean_text[red_start.end():]
+            val1, val2 = int(score_match.group(1)), int(score_match.group(2))
+            line_context = text[max(0, score_match.start()-20):score_match.end()+20].lower()
+            if line_context.find('red') < line_context.find('blue'):
+                data['s_red'], data['s_blue'] = val1, val2
             else:
-                red_block = clean_text[red_start.end():blue_start.start()]
-                blue_block = clean_text[blue_start.end():]
-                
-            def get_names(block):
+                data['s_blue'], data['s_red'] = val1, val2
+        clean_text = text.replace('*', '')
+        r_start = re.search(r'Red:', clean_text, re.IGNORECASE)
+        b_start = re.search(r'Blue:', clean_text, re.IGNORECASE)
+        if r_start and b_start:
+            if r_start.start() < b_start.start():
+                red_block = clean_text[r_start.end():b_start.start()]
+                blue_block = clean_text[b_start.end():]
+            else:
+                blue_block = clean_text[b_start.end():r_start.start()]
+                red_block = clean_text[r_start.end():]
+            def extract_names(block):
                 names = []
                 for line in block.split('\n'):
-                    line = line.strip()
-                    if len(line) > 2 and not line.lower().startswith("we had this"):
-                        names.append(clean_player_name(line))
+                    line = re.sub(r'[✅☑️\d\(\)@]', '', line).replace('Fine', '').replace(':', '').strip()
+                    if len(line) > 2: names.append(line)
                 return ", ".join(names)
-
-            data['Team_Blue'] = get_names(blue_block)
-            data['Team_Red'] = get_names(red_block)
-            
-    except Exception as e:
-        print(f"Error parsing: {e}")
-        
+            data['p_red'] = extract_names(red_block)
+            data['p_blue'] = extract_names(blue_block)
+    except: pass
     return data
 
 def calculate_leaderboard(df_matches, official_names):
@@ -141,7 +108,6 @@ def calculate_leaderboard(df_matches, official_names):
         blue_team = [x.strip() for x in str(row['Team_Blue']).split(',') if x.strip()]
         red_team = [x.strip() for x in str(row['Team_Red']).split(',') if x.strip()]
         def update(player_name, team_color):
-            # Only track if player is in official DB
             if player_name not in official_names: return
             if player_name not in stats: stats[player_name] = {'M': 0, 'W': 0, 'L': 0, 'D': 0, 'Form': []}
             p = stats[player_name]
@@ -154,8 +120,8 @@ def calculate_leaderboard(df_matches, official_names):
         for p in red_team: update(p, 'Red')
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
-    res['Win %'] = ((res['W'] / res['M']) * 100).fillna(0).round(0).astype(int)
-    res = res[res['M'] >= 2] # Min matches filter
+    res['Win %'] = ((res['W'] / res['M']) * 100).round(0).astype(int)
+    res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
@@ -174,6 +140,7 @@ def calculate_player_score(row):
         except: stats[k] = 70.0
 
     pos = row.get('Position', 'MID')
+    
     if pos == 'FWD':
         weighted_avg = (stats['SHO']*0.25 + stats['DRI']*0.2 + stats['PAC']*0.2 + stats['PAS']*0.15 + stats['PHY']*0.1 + stats['DEF']*0.1)
     elif pos == 'DEF':
@@ -192,6 +159,7 @@ def load_data():
     conn = None
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
+        # SUPPRESS LOADING TEXT with show_spinner=False
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
@@ -216,8 +184,13 @@ def run_football_app():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
         .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
+        
         input { color: #ffffff !important; }
-        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { background-color: rgba(255,255,255,0.08) !important; border: 1px solid rgba(255,255,255,0.2) !important; color: white !important; }
+        div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="base-input"] { 
+            background-color: rgba(255,255,255,0.08) !important; 
+            border: 1px solid rgba(255,255,255,0.2) !important; 
+            color: white !important;
+        }
         
         @media (max-width: 640px) {
             div[data-testid="column"] { min-width: 0 !important; flex: 1 1 auto !important; padding-left: 2px !important; padding-right: 2px !important; }
@@ -262,8 +235,6 @@ def run_football_app():
     if 'position_changes' not in st.session_state: st.session_state.position_changes = []
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
-    # Match Log State
-    if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
 
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
@@ -274,10 +245,6 @@ def run_football_app():
         st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
-
-    # ... [TAB 1 & 2 CODE REMAIN SAME] ...
-    # Re-pasting just the modified parts to keep context clear for brevity?
-    # No, pasting full functional block for safety.
 
     with tab1:
         smfc_n, guest_n, total_n = get_counts()
@@ -290,19 +257,24 @@ def run_football_app():
                     st.session_state.master_db['Selected'] = False 
                     new_guests = []
                     found_count = 0
+                    
                     raw_lines = extract_whatsapp_players(whatsapp_text)
+                    
                     for line in raw_lines:
                         match = False
+                        # CLEAN INPUT AND DB NAME AGGRESSIVELY
                         clean_input = clean_player_name(line).lower()
                         for idx, row in st.session_state.master_db.iterrows():
                             db_name = clean_player_name(str(row['Name'])).lower()
                             if db_name == clean_input:
                                 st.session_state.master_db.at[idx, 'Selected'] = True; match = True; found_count += 1; break
                         if not match: new_guests.append(clean_player_name(line))
+                    
                     current = get_guests_list()
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
+                    
                     st.session_state.checklist_version += 1
                     st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
                 else: st.error("DB Offline")
@@ -333,7 +305,8 @@ def run_football_app():
 
         guests = get_guests_list()
         if guests:
-            st.write("---"); st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
+            st.write("---")
+            st.markdown("<h3 style='color:#FFD700; text-align:center; margin-bottom: 15px;'>GUEST SQUAD SETUP</h3>", unsafe_allow_html=True)
             for g_name in guests:
                 c_name, c_pos, c_lvl = st.columns([3.5, 2, 2.5])
                 with c_name: st.markdown(f"<div class='guest-row-label'>{g_name}</div>", unsafe_allow_html=True)
@@ -348,7 +321,8 @@ def run_football_app():
                 with c_p_sel:
                     p_opts = [f"{row['Name']} ({row['Position']})" for _, row in selected_players.iterrows()]
                     p_to_edit_str = st.selectbox("Select Player", p_opts, key="edit_pos_player")
-                with c_p_pos: new_pos = st.selectbox("New Position", ["FWD", "MID", "DEF", "GK"], key="edit_pos_new")
+                with c_p_pos:
+                    new_pos = st.selectbox("New Position", ["FWD", "MID", "DEF", "GK"], key="edit_pos_new")
                 with c_p_btn:
                     st.write(""); st.write("")
                     if st.button("UPDATE POS", key="btn_update_pos"):
@@ -360,14 +334,18 @@ def run_football_app():
                         st.session_state.checklist_version += 1
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
+                
                 if st.session_state.position_changes:
-                    st.write(""); for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
+                    st.write("")
+                    for change in st.session_state.position_changes:
+                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
 
         st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
                 active = st.session_state.master_db[st.session_state.master_db['Selected'] == True].copy()
+                
                 guest_rows = []
                 star_map = {"⭐": 1, "⭐⭐": 2, "⭐⭐⭐": 3, "⭐⭐⭐⭐": 4, "⭐⭐⭐⭐⭐": 5}
                 for g in get_guests_list():
@@ -380,22 +358,30 @@ def run_football_app():
                 if not active.empty:
                     active['Power'] = active.apply(calculate_player_score, axis=1)
                     active = active.sort_values(['Position', 'Power'], ascending=[True, False])
+                    
                     gks = active[active['Position'] == 'GK'].sort_values('Power', ascending=False)
                     defs = active[active['Position'] == 'DEF'].sort_values('Power', ascending=False)
                     mids = active[active['Position'] == 'MID'].sort_values('Power', ascending=False)
                     fwds = active[active['Position'] == 'FWD'].sort_values('Power', ascending=False)
-                    red_team, blue_team = [], []; red_score, blue_score = 0, 0
+                    
+                    red_team, blue_team = [], []
+                    red_score, blue_score = 0, 0
+                    
                     turn = 0 
                     def draft_players(pool):
                         nonlocal turn, red_score, blue_score
                         for _, p in pool.iterrows():
                             if len(red_team) > len(blue_team) + 1: turn = 1
                             elif len(blue_team) > len(red_team) + 1: turn = 0
+                            
                             if turn == 0: red_team.append(p); red_score += p['Power']; turn = 1
                             else: blue_team.append(p); blue_score += p['Power']; turn = 0
+                    
                     draft_players(gks); draft_players(defs); draft_players(mids); draft_players(fwds)
+                    
                     df_red = pd.DataFrame(red_team); df_red['Team'] = 'Red'
                     df_blue = pd.DataFrame(blue_team); df_blue['Team'] = 'Blue'
+                    
                     st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
                     st.session_state.red_ovr = int(df_red['Power'].mean()) if not df_red.empty else 0
                     st.session_state.blue_ovr = int(df_blue['Power'].mean()) if not df_blue.empty else 0
@@ -408,9 +394,11 @@ def run_football_app():
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
             r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
+
             red_html = ""; blue_html = ""
             for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
             for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
+
             st.markdown(f"""
             <div class="section-box">
                 <div style="color:#FF5722; font-weight:bold; font-size:18px; margin-bottom: 10px;">LINEUPS</div>
@@ -421,16 +409,20 @@ def run_football_app():
                 </div>
             </div>
             """, unsafe_allow_html=True)
+            
             dt_match = datetime.combine(match_date, match_time)
             dt_end = dt_match + timedelta(minutes=duration)
-            str_date = dt_match.strftime('%A, %d %b'); str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
+            str_date = dt_match.strftime('%A, %d %b')
+            str_time = f"{dt_match.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
             r_list = "\n".join([p['Name'] for p in reds.to_dict('records')]); b_list = "\n".join([p['Name'] for p in blues.to_dict('records')])
             summary = f"Date: {str_date}\nTime: {str_time}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list}"
-            components.html(f"""<textarea id="text_to_copy_v2" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy_v2');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
-            
+            components.html(f"""<textarea id="text_to_copy" style="position:absolute; left:-9999px;">{summary}</textarea><button onclick="var c=document.getElementById('text_to_copy');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:15px 0; border:none; border-radius:8px; width:100%; cursor:pointer; font-size:16px; margin-top:10px;">📋 COPY TEAM LIST</button>""", height=70)
+
             st.write("---"); st.markdown("<h3 style='text-align:center; color:#FF5722;'>TRANSFER WINDOW</h3>", unsafe_allow_html=True)
             col_tr_red, col_btn, col_tr_blue = st.columns([4, 1, 4])
-            red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]; blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
+            red_opts = [f"{r['Name']} ({r['Position']})" for _, r in reds.iterrows()]
+            blue_opts = [f"{r['Name']} ({r['Position']})" for _, r in blues.iterrows()]
+
             with col_tr_red: s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
             with col_tr_blue: s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
@@ -441,12 +433,17 @@ def run_football_app():
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
+                    
                     r_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
                     b_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
-                    st.session_state.red_ovr = int(r_p['Power'].mean()); st.session_state.blue_ovr = int(b_p['Power'].mean())
+                    st.session_state.red_ovr = int(r_p['Power'].mean())
+                    st.session_state.blue_ovr = int(b_p['Power'].mean())
                     st.rerun()
+            
             if st.session_state.transfer_log:
-                st.write(""); for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
+                st.write("")
+                for log in st.session_state.transfer_log:
+                    st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab2:
@@ -515,55 +512,11 @@ def run_football_app():
                 with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
                 st.write("---")
                 for p, r in lb.iterrows(): st.markdown(f"<div class='lb-card'><div style='font-size:20px; font-weight:900; color:#FF5722'>#{r['Rank']}</div><div><span style='font-size:18px; font-weight:800; color:#fff'>{p}</span><br><span style='font-size:13px; color:#888'>{r['M']} Matches • {r['W']} Wins</span></div><div class='lb-winrate'>{r['Win %']}%</div></div>", unsafe_allow_html=True)
-            
-            # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
                 wa_txt = st.text_area("Paste WhatsApp Chat")
                 if st.button("Parse"):
-                    parsed = parse_match_log(wa_txt)
-                    st.session_state.parsed_match_data = parsed
-                    st.toast("Match Parsed!")
-                
-                if st.session_state.parsed_match_data:
-                    pm = st.session_state.parsed_match_data
-                    c_d, c_t, c_v = st.columns(3)
-                    new_date = c_d.text_input("Date", pm['Date'])
-                    new_time = c_t.text_input("Time", pm['Time'])
-                    new_venue = c_v.text_input("Venue", pm['Venue'])
-                    
-                    c_s1, c_s2 = st.columns(2)
-                    new_score_b = c_s1.number_input("Blue Score", value=pm['Score_Blue'])
-                    new_score_r = c_s2.number_input("Red Score", value=pm['Score_Red'])
-                    
-                    new_blue = st.text_area("Blue Team (Comma Sep)", pm['Team_Blue'])
-                    new_red = st.text_area("Red Team (Comma Sep)", pm['Team_Red'])
-                    
-                    c_cost, c_late = st.columns(2)
-                    new_cost = c_cost.number_input("Cost", value=pm.get('Cost', 0))
-                    new_late = c_late.number_input("Late Fee", value=pm.get('LateFee', 0))
-                    
-                    save_pass = st.text_input("Admin Password", type="password")
-                    if st.button("💾 SAVE MATCH TO DB"):
-                        if save_pass == "1234":
-                            # Create new row
-                            new_row = pd.DataFrame([{
-                                "Date": new_date, "Time": new_time, "Venue": new_venue,
-                                "Score_Blue": new_score_b, "Score_Red": new_score_r,
-                                "Winner": "Blue" if new_score_b > new_score_r else ("Red" if new_score_r > new_score_b else "Draw"),
-                                "Team_Blue": new_blue, "Team_Red": new_red,
-                                "Cost": new_cost, "Gpay": pm.get('Gpay',''), "LateFee": new_late
-                            }])
-                            # Update DB
-                            try:
-                                updated_df = pd.concat([st.session_state.match_db, new_row], ignore_index=True)
-                                conn = st.session_state.conn
-                                conn.update(worksheet="Match_History", data=updated_df)
-                                st.session_state.match_db = updated_df # Update session
-                                st.success("Match Saved Successfully!")
-                            except Exception as e:
-                                st.error(f"Failed to save: {e}")
-                        else:
-                            st.error("Wrong Password")
-
+                    parsed = parse_whatsapp_log(wa_txt)
+                    if parsed: st.success(f"Parsed: {parsed}")
+                    else: st.warning("Failed to parse")
     with tab4:
         if st.text_input("Password", type="password") == "1234": st.dataframe(st.session_state.master_db)
