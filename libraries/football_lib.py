@@ -32,22 +32,14 @@ def get_counts():
     smfc_count = 0
     if hasattr(st.session_state, 'master_db') and isinstance(st.session_state.master_db, pd.DataFrame):
         if 'Selected' in st.session_state.master_db.columns:
-            # FORCE BOOLEAN to ensure 100% accurate math
             smfc_count = st.session_state.master_db['Selected'].fillna(False).astype(bool).sum()
     guest_count = len(get_guests_list())
     return smfc_count, guest_count, smfc_count + guest_count
 
 def toggle_selection(idx):
-    """
-    Updates DB and increments Global Version to force UI refresh.
-    """
     if 'Selected' in st.session_state.master_db.columns:
-        # Toggle the boolean value
         current_val = bool(st.session_state.master_db.at[idx, 'Selected'])
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
-        
-        # --- THE NUCLEAR FIX ---
-        # Increment a global version counter.
         if 'ui_version' not in st.session_state:
             st.session_state.ui_version = 0
         st.session_state.ui_version += 1
@@ -161,8 +153,7 @@ def load_data():
         df = conn.read(worksheet="Sheet1", ttl=0, show_spinner=False)
         if df is None or df.empty: raise ValueError("Sheet1 returned empty data")
         if 'Selected' not in df.columns: df['Selected'] = False
-        else: df['Selected'] = df['Selected'].fillna(False).astype(bool) # Sanitize on load
-        
+        else: df['Selected'] = df['Selected'].fillna(False).astype(bool)
         try: df_matches = conn.read(worksheet="Match_History", ttl=0, show_spinner=False)
         except: df_matches = pd.DataFrame()
         return conn, df, df_matches
@@ -180,12 +171,16 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # Initialize version state if missing
+    # --- 1. CRITICAL INITIALIZATION (MUST BE FIRST) ---
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
+    if 'position_changes' not in st.session_state: st.session_state.position_changes = []
+    if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
+    if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
 
-    # --- GLOBAL CSS ---
+    # --- 2. GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -197,39 +192,40 @@ def run_football_app():
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
+        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
+        .section-box { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
         .kit-blue { border-left: 4px solid #1c83e1; }
         .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
-        div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
+        .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
     </style>
     """, unsafe_allow_html=True)
 
+    # --- 3. DATA LOADING ---
     if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
         conn, df_p, df_m = load_data()
         st.session_state.conn = conn; st.session_state.master_db = df_p; st.session_state.match_db = df_m
     else:
         if 'conn' not in st.session_state: conn, df_p, df_m = load_data(); st.session_state.conn = conn
 
-    if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
-    if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-
+    # --- 4. HEADER ---
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
-        st.session_state.ui_version += 1 # Force reload
+        st.session_state.ui_version += 1
         st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
     with tab1:
-        # FIX: Calculate counts BEFORE displaying them
         smfc_n, guest_n, total_n = get_counts()
-        
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
         
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
@@ -252,7 +248,7 @@ def run_football_app():
                     for g in new_guests:
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
-                    st.session_state.ui_version += 1 # Force sync update
+                    st.session_state.ui_version += 1
                     st.toast(f"✅ Found {found_count} players. {len(new_guests)} guests added!"); st.rerun()
                 else: st.error("DB Offline")
 
@@ -262,7 +258,6 @@ def run_football_app():
             df_s = df_s.sort_values("Name")
             cols = st.columns(3) 
             for i, (idx, row) in enumerate(df_s.iterrows()):
-                # Unique Key includes UI Version -> Forces brand new widget on every update
                 key_id = f"chk_{idx}_{t_n}_v{st.session_state.ui_version}"
                 cols[i % 3].checkbox(f"{row['Name']}", value=bool(row.get('Selected', False)), key=key_id, on_change=toggle_selection, args=(idx,))
         
@@ -469,6 +464,7 @@ def run_football_app():
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
+                # Updated text area label to specific neon-white instruction
                 wa_txt = st.text_area("Paste the final full result with scoreline and team split")
                 if st.button("Parse"):
                     parsed = parse_match_log(wa_txt)
@@ -478,8 +474,11 @@ def run_football_app():
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
                     
+                    # Main heading (Neon White)
                     st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
+
                     c_d, c_t, c_v = st.columns(3)
+                    # Standard labels pick up neon-white CSS
                     new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
