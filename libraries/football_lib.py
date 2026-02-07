@@ -44,22 +44,37 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🐘 KAARTHUMBI AI ENGINE (UPDATED MODEL) ---
+# --- 🐘 KAARTHUMBI AI ENGINE (ROBUST FIX) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "Ayyo Manikya! Where is the key? The Gandharvas must have stolen it! (Add API key to secrets)"
+            return "Ayyo Manikya! The key is missing! (Add API key to secrets)"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # USE GEMINI 2.0 FLASH (Based on your available models list)
-        try:
-            model = genai.GenerativeModel('gemini-2.0-flash')
-        except:
-            # Fallback if 2.0 fails for some reason
-            model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # 1. ROBUST MODEL SELECTION
+        # We try the most likely models in order.
+        model = None
+        errors = []
+        
+        candidates = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        
+        for m_name in candidates:
+            try:
+                test_model = genai.GenerativeModel(m_name)
+                # Quick handshake to see if model exists/works
+                # We don't generate yet, just assigning
+                model = test_model
+                break
+            except Exception as e:
+                errors.append(f"{m_name}: {str(e)}")
+                continue
+        
+        if model is None:
+            # If all fail, default to generic 'gemini-pro' as last resort
+            model = genai.GenerativeModel('gemini-pro')
 
-        # Context Data
+        # 2. DATA CONTEXT
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
         hist_summary = ""
         if not history_df.empty:
@@ -69,34 +84,29 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         else:
             hist_summary = "The ground is empty like the temple at noon."
 
-        # KAARTHUMBI PERSONA PROMPT
+        # 3. KAARTHUMBI PERSONA
         prompt = f"""
-        SYSTEM INSTRUCTION:
-        You are **Kaarthumbi** from the movie *Thenmavin Kombathu*. You are a spirited, innocent, and traditionally minded village girl living in a lush, timeless Kerala village.
+        ACT AS: Kaarthumbi (from Thenmavin Kombathu).
+        TONE: Feisty, innocent, village-girl, superstitious, sarcastic.
         
-        YOUR PERSONALITY:
-        1. **Radical Innocence:** You know NOTHING of the modern world. AI, Internet, Stats? Is that a type of fish? Or magic? Explain everything through folklore.
-        2. **The Sharp Tongue:** You are feisty! If the user asks something simple, tease them. "Oh, look who is asking! Even the monkeys know this!"
-        3. **Mythical Worldview:** You believe in Gandharvas, spirits in the Pala tree, and omens.
+        DATA:
+        Players: {lb_summary}
+        Matches: {hist_summary}
         
-        SPEAKING STYLE:
-        - **Tone:** Energetic, dramatic, rustic.
-        - **Nicknames:** Call the user "**Manikya**" (playful/teasing) or "**Chetta**".
-        - **Vocabulary:** Use "Ayyo!", "Ente Krishna!", "Poda!", "Kumbidi!", "Mango tree", "Bullock cart".
+        USER ASKS: "{user_query}"
         
-        DATA CONTEXT (Interpret this as village gossip, not data):
-        [PLAYER STATS]: {lb_summary}
-        [RECENT MATCHES]: {hist_summary}
-        
-        USER QUESTION: "{user_query}"
-        
-        ANSWER AS KAARTHUMBI:
+        INSTRUCTIONS:
+        - Call user "Manikya".
+        - If they ask about stats, say the spirits told you.
+        - Be short and funny.
+        - Don't act like a robot.
         """
         
         response = model.generate_content(prompt)
         return response.text
+        
     except Exception as e:
-        return f"Ente Krishna! The spirits are blocking my voice! (Error: {str(e)})"
+        return f"Ayyo! The Gandharvas are blocking the signal! (Error: {str(e)})"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -183,6 +193,7 @@ def calculate_leaderboard(df_matches, official_names):
     
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
+    
     return res
 
 def calculate_player_score(row):
@@ -248,7 +259,6 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        /* KAARTHUMBI & MATCH HISTORY STYLES */
         .neon-gold { 
             color: #FFEB3B !important; 
             font-weight: 900 !important; 
@@ -257,7 +267,7 @@ def run_football_app():
             letter-spacing: 0.5px;
         }
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
-        .draw-text { color: #aaa; font-weight: 600; font-size: 12px; }
+        .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
@@ -291,14 +301,13 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
-        /* MATCH HISTORY CARD STYLE */
         .match-card {
             background: rgba(18, 18, 18, 0.9);
             border-radius: 12px;
             padding: 15px;
             margin-bottom: 15px;
             display: flex;
-            align-items: center;
+            align-items: stretch;
             transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
@@ -324,8 +333,8 @@ def run_football_app():
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         
         /* AI CHAT BOX STYLE */
-        .ai-box { background: rgba(0, 100, 0, 0.2); border: 1px solid rgba(0, 255, 100, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
-        .ai-title { color: #76FF03; font-weight: 900; margin-bottom: 10px; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-align: center; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
+        .ai-box { background: rgba(0, 100, 0, 0.1); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
+        .ai-title { color: #76FF03; font-weight: 900; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
         .ai-response { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #76FF03; color: #e0e0e0; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
@@ -571,9 +580,19 @@ def run_football_app():
             
             # --- 🤖 KAARTHUMBI AI CHAT SECTION ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
-            st.markdown("<div class='ai-title'>🐘 KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
+            
+            # TITLE WITH AVATAR
+            col_avatar, col_title = st.columns([1, 5])
+            with col_avatar:
+                if os.path.exists("kaarthumbi.png"):
+                    st.image("kaarthumbi.png", width=60)
+                else:
+                    st.markdown("🐘", unsafe_allow_html=True) # Fallback icon
+            with col_title:
+                st.markdown("<div class='ai-title'>KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
+            
             user_q = st.text_input("Ask Kaarthumbi anything... (e.g., 'Manikya, who played well?')", key="ai_q", placeholder="Manikya! What do you want to ask me?")
-            if st.button("📢 Call Kaarthumbi"):
+            if st.button("📢 Ask Kaarthumbi"):
                 with st.spinner("Kaarthumbi is consulting the Gandharvas..."):
                     lb = calculate_leaderboard(df_m, official_names)
                     ans = ask_ai_scout(user_q, lb, df_m)
