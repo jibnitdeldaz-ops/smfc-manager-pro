@@ -6,3 +6,4 @@ plotly
 matplotlib
 mplsoccer
 st-gsheets-connection>=0.0.4
+google-generativeai

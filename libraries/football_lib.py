@@ -9,7 +9,8 @@ import streamlit.components.v1 as components
 import re
 import os
 import base64
-##### BEST VERSION JIBIN 06FEB
+import google.generativeai as genai
+
 # --- 🧮 HELPER FUNCTIONS ---
 def extract_whatsapp_players(text):
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
@@ -42,6 +43,49 @@ def toggle_selection(idx):
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
+
+# --- 🤖 AI PUNDIT ENGINE ---
+def generate_ai_report(date, venue, b_score, r_score, b_team, r_team):
+    """
+    Uses Google Gemini to generate a match report.
+    """
+    try:
+        # Check for API Key
+        if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
+            return "⚠️ API Key missing! Add [api] gemini='...' to secrets.toml"
+
+        genai.configure(api_key=st.secrets["api"]["gemini"])
+        model = genai.GenerativeModel('gemini-pro')
+
+        # Determine winner for context
+        winner = "Draw"
+        if b_score > r_score: winner = "Blue Team"
+        elif r_score > b_score: winner = "Red Team"
+
+        prompt = f"""
+        You are a passionate, high-energy football commentator for a 7-a-side amateur group called SMFC.
+        Write a short, exciting match report (max 100 words) for WhatsApp.
+        
+        Details:
+        - Date: {date} at {venue}
+        - Score: Blue {b_score} - {r_score} Red
+        - Winner: {winner}
+        - Blue Squad: {b_team}
+        - Red Squad: {r_team}
+
+        Style Guidelines:
+        - Use emojis ⚽🔥🚀
+        - Mention specific players if possible.
+        - Be dramatic about the scoreline.
+        - If it was a draw, call it a "hard-fought stalemate".
+        - If one team won by a lot, call it a "demolition".
+        - Start with a catchy headline.
+        """
+        
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"❌ AI Error: {str(e)}"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -125,10 +169,8 @@ def calculate_leaderboard(df_matches, official_names):
     res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
-    
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
-    
     return res
 
 def calculate_player_score(row):
@@ -182,6 +224,8 @@ def run_football_app():
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
+    # AI Report State
+    if 'ai_match_report' not in st.session_state: st.session_state.ai_match_report = ""
 
     # --- GLOBAL CSS ---
     st.markdown("""
@@ -203,7 +247,6 @@ def run_football_app():
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
         
-        /* METRICS */
         [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         
@@ -211,7 +254,6 @@ def run_football_app():
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
         .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         
-        /* ANALYTICS CARDS */
         .lb-card {
             background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
             border: 1px solid rgba(255,255,255,0.1);
@@ -232,7 +274,6 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
-        /* --- NEW MATCH HISTORY CARD STYLE --- */
         .match-card {
             background: rgba(20, 20, 20, 0.8);
             border-radius: 10px;
@@ -629,6 +670,19 @@ def run_football_app():
                     st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
                     new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
+                    # NEW AI REPORT BUTTON
+                    st.write("---")
+                    if st.button("🎙️ Generate Match Report (AI)"):
+                        with st.spinner("Writing report..."):
+                            report = generate_ai_report(new_date, new_venue, new_score_b, new_score_r, new_blue, new_red)
+                            st.session_state.ai_match_report = report
+                    
+                    if st.session_state.ai_match_report:
+                        st.text_area("AI Match Report", st.session_state.ai_match_report, height=150)
+                        if st.button("📋 Copy Report"):
+                            st.write("Copy functionality requires JS, please select text above manually for now.")
+
+                    st.write("---")
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
                         try:
