@@ -44,7 +44,7 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🐘 KAARTHUMBI AI ENGINE ---
+# --- 🐘 KAARTHUMBI AI ENGINE (UPDATED MODEL) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
@@ -52,11 +52,12 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # Try the modern standard model first
+        # USE GEMINI 2.0 FLASH (Based on your available models list)
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model = genai.GenerativeModel('gemini-2.0-flash')
         except:
-            model = genai.GenerativeModel('gemini-pro')
+            # Fallback if 2.0 fails for some reason
+            model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
         # Context Data
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
@@ -95,15 +96,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        # Debug helper: List available models if 404 occurs
-        error_msg = str(e)
-        if "404" in error_msg:
-            try:
-                available = [m.name for m in genai.list_models()]
-                return f"Ayyo! The spirits are confused. Available spirits: {available}. (Error: {error_msg})"
-            except:
-                pass
-        return f"Ente Krishna! Something is blocking my voice! ({error_msg})"
+        return f"Ente Krishna! The spirits are blocking my voice! (Error: {str(e)})"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -236,7 +229,6 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
-    # --- 1. CRITICAL INITIALIZATION (TOP OF FUNCTION) ---
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
@@ -246,7 +238,7 @@ def run_football_app():
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
 
-    # --- 2. GLOBAL CSS ---
+    # --- GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -256,8 +248,7 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        /* --- 💎 NEW READABILITY STYLES --- */
-        /* High Contrast Yellow for Winners */
+        /* KAARTHUMBI & MATCH HISTORY STYLES */
         .neon-gold { 
             color: #FFEB3B !important; 
             font-weight: 900 !important; 
@@ -265,14 +256,16 @@ def run_football_app():
             text-shadow: 1px 1px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000; 
             letter-spacing: 0.5px;
         }
-        /* Dull Grey for Losers */
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
-        .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
+        .draw-text { color: #aaa; font-weight: 600; font-size: 12px; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
+        
+        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
