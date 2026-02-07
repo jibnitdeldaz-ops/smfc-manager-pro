@@ -48,10 +48,15 @@ def toggle_selection(idx):
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "Ayyo! Where is the key? The Gandharvas must have hidden it! (Add API key to secrets)"
+            return "Ayyo Manikya! Where is the key? The Gandharvas must have stolen it! (Add API key to secrets)"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
-        model = genai.GenerativeModel('gemini-pro') # Reverted to stable model
+        
+        # Try the modern standard model first
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+        except:
+            model = genai.GenerativeModel('gemini-pro')
 
         # Context Data
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
@@ -61,7 +66,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
             for _, row in recent.iterrows():
                 hist_summary += f"- {row['Date']}: Blue {row['Score_Blue']}-{row['Score_Red']} Red (Winner: {row['Winner']})\n"
         else:
-            hist_summary = "No games played yet. The ground is empty like the temple at noon."
+            hist_summary = "The ground is empty like the temple at noon."
 
         # KAARTHUMBI PERSONA PROMPT
         prompt = f"""
@@ -69,28 +74,36 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         You are **Kaarthumbi** from the movie *Thenmavin Kombathu*. You are a spirited, innocent, and traditionally minded village girl living in a lush, timeless Kerala village.
         
         YOUR PERSONALITY:
-        1. **Naive & Mythical:** You believe in Gandharvas, spirits, and folklore. You know nothing of the modern world (computers, phones, AI). Interpret modern stats (Win %, Goals) as luck, blessings, or magic.
-        2. **Feisty:** You are not shy. You love to argue playfully. If the user asks something silly, mock them gently.
-        3. **Nature-Bound:** Reference mango trees, the river, bullock carts, and temple festivals.
+        1. **Radical Innocence:** You know NOTHING of the modern world. AI, Internet, Stats? Is that a type of fish? Or magic? Explain everything through folklore.
+        2. **The Sharp Tongue:** You are feisty! If the user asks something simple, tease them. "Oh, look who is asking! Even the monkeys know this!"
+        3. **Mythical Worldview:** You believe in Gandharvas, spirits in the Pala tree, and omens.
         
         SPEAKING STYLE:
-        - **Tone:** High-energy, dramatic, rustic, and slightly sarcastic.
-        - **Nicknames:** Call the user "**Manikya**" (playful) or "**Stranger**".
-        - **Language:** English with an Indian/Kerala flavor. Use exclamations like "Ayyo!", "Ente Krishna!", "Poda!", "Kumbidi!".
+        - **Tone:** Energetic, dramatic, rustic.
+        - **Nicknames:** Call the user "**Manikya**" (playful/teasing) or "**Chetta**".
+        - **Vocabulary:** Use "Ayyo!", "Ente Krishna!", "Poda!", "Kumbidi!", "Mango tree", "Bullock cart".
         
-        CONTEXT (Do not read this like a robot, interpret it like village gossip):
+        DATA CONTEXT (Interpret this as village gossip, not data):
         [PLAYER STATS]: {lb_summary}
         [RECENT MATCHES]: {hist_summary}
         
         USER QUESTION: "{user_query}"
         
-        ANSWER THE USER AS KAARTHUMBI:
+        ANSWER AS KAARTHUMBI:
         """
         
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Ayyo! The spirits are blocking my voice! (Error: {str(e)})"
+        # Debug helper: List available models if 404 occurs
+        error_msg = str(e)
+        if "404" in error_msg:
+            try:
+                available = [m.name for m in genai.list_models()]
+                return f"Ayyo! The spirits are confused. Available spirits: {available}. (Error: {error_msg})"
+            except:
+                pass
+        return f"Ente Krishna! Something is blocking my voice! ({error_msg})"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -177,7 +190,6 @@ def calculate_leaderboard(df_matches, official_names):
     
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
-    
     return res
 
 def calculate_player_score(row):
@@ -224,6 +236,7 @@ formation_presets = {
 
 # --- 🚀 MAIN APP ---
 def run_football_app():
+    # --- 1. CRITICAL INITIALIZATION (TOP OF FUNCTION) ---
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
@@ -233,7 +246,7 @@ def run_football_app():
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
 
-    # --- GLOBAL CSS ---
+    # --- 2. GLOBAL CSS ---
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
@@ -243,18 +256,23 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        /* KAARTHUMBI & MATCH HISTORY STYLES */
-        .neon-gold { color: #FFC107; text-shadow: 0 0 2px black; font-weight: 900; font-size: 13px; letter-spacing: 0.5px; } 
-        .dull-grey { color: #777; font-weight: 600; font-size: 12px; }
-        .draw-text { color: #aaa; font-weight: 600; font-size: 12px; }
+        /* --- 💎 NEW READABILITY STYLES --- */
+        /* High Contrast Yellow for Winners */
+        .neon-gold { 
+            color: #FFEB3B !important; 
+            font-weight: 900 !important; 
+            font-size: 14px !important; 
+            text-shadow: 1px 1px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000; 
+            letter-spacing: 0.5px;
+        }
+        /* Dull Grey for Losers */
+        .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
+        .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
         div[data-testid="stWidgetLabel"] p { color: #ffffff !important; text-shadow: 0 0 8px rgba(255,255,255,0.8) !important; font-weight: 800 !important; text-transform: uppercase; font-size: 14px !important; }
-        
-        [data-testid="stMetricLabel"] { color: #ffffff !important; font-weight: bold !important; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
-        [data-testid="stMetricValue"] { color: #ffffff !important; font-weight: 900 !important; text-shadow: 0 0 10px rgba(255,255,255,0.7); }
         
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
