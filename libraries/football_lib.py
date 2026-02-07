@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 import re
 import os
 import base64
-import google.generativeai as genai
+import google.generativeai as genai  # <--- AI BRAIN RESTORED
 
 # --- 🧮 HELPER FUNCTIONS ---
 def extract_whatsapp_players(text):
@@ -44,44 +44,32 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🤖 AI PUNDIT ENGINE ---
+# --- 🤖 AI PUNDIT ENGINE (RESTORED) ---
 def generate_ai_report(date, venue, b_score, r_score, b_team, r_team):
-    """
-    Uses Google Gemini to generate a match report.
-    """
     try:
-        # Check for API Key
+        # Check for API Key in secrets
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
             return "⚠️ API Key missing! Add [api] gemini='...' to secrets.toml"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         model = genai.GenerativeModel('gemini-pro')
 
-        # Determine winner for context
         winner = "Draw"
         if b_score > r_score: winner = "Blue Team"
         elif r_score > b_score: winner = "Red Team"
 
         prompt = f"""
-        You are a passionate, high-energy football commentator for a 7-a-side amateur group called SMFC.
+        You are a passionate football commentator for a 7-a-side group called SMFC.
         Write a short, exciting match report (max 100 words) for WhatsApp.
         
-        Details:
-        - Date: {date} at {venue}
-        - Score: Blue {b_score} - {r_score} Red
-        - Winner: {winner}
-        - Blue Squad: {b_team}
-        - Red Squad: {r_team}
+        Match: {date} at {venue}
+        Score: Blue {b_score} - {r_score} Red
+        Winner: {winner}
+        Blue Squad: {b_team}
+        Red Squad: {r_team}
 
-        Style Guidelines:
-        - Use emojis ⚽🔥🚀
-        - Mention specific players if possible.
-        - Be dramatic about the scoreline.
-        - If it was a draw, call it a "hard-fought stalemate".
-        - If one team won by a lot, call it a "demolition".
-        - Start with a catchy headline.
+        Style: Use emojis ⚽🔥. Be dramatic about the score. Mention key players.
         """
-        
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -169,8 +157,10 @@ def calculate_leaderboard(df_matches, official_names):
     res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
+    
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
+    
     return res
 
 def calculate_player_score(row):
@@ -224,7 +214,6 @@ def run_football_app():
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # AI Report State
     if 'ai_match_report' not in st.session_state: st.session_state.ai_match_report = ""
 
     # --- GLOBAL CSS ---
@@ -274,6 +263,7 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
+        /* MATCH HISTORY CARD STYLE */
         .match-card {
             background: rgba(20, 20, 20, 0.8);
             border-radius: 10px;
@@ -670,7 +660,7 @@ def run_football_app():
                     st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
                     new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
-                    # NEW AI REPORT BUTTON
+                    # NEW AI REPORT BUTTON (Restored)
                     st.write("---")
                     if st.button("🎙️ Generate Match Report (AI)"):
                         with st.spinner("Writing report..."):
