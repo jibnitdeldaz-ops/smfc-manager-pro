@@ -9,7 +9,7 @@ import streamlit.components.v1 as components
 import re
 import os
 import base64
-import google.generativeai as genai  # <--- AI BRAIN RESTORED
+import google.generativeai as genai
 
 # --- 🧮 HELPER FUNCTIONS ---
 def extract_whatsapp_players(text):
@@ -44,32 +44,52 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🤖 AI PUNDIT ENGINE (RESTORED) ---
-def generate_ai_report(date, venue, b_score, r_score, b_team, r_team):
+# --- 🤖 AI SUPER-SCOUT ENGINE ---
+def ask_ai_scout(user_query, leaderboard_df, history_df):
+    """
+    Feeds the full database context to Gemini 1.5 Flash to answer questions.
+    """
     try:
-        # Check for API Key in secrets
+        # Check API Key
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
             return "⚠️ API Key missing! Add [api] gemini='...' to secrets.toml"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
-        model = genai.GenerativeModel('gemini-pro')
+        # Use 'gemini-1.5-flash' - it's fast, cheap (free tier), and smart.
+        model = genai.GenerativeModel('gemini-1.5-flash')
 
-        winner = "Draw"
-        if b_score > r_score: winner = "Blue Team"
-        elif r_score > b_score: winner = "Red Team"
-
-        prompt = f"""
-        You are a passionate football commentator for a 7-a-side group called SMFC.
-        Write a short, exciting match report (max 100 words) for WhatsApp.
+        # 1. Prepare Context (Data to Text)
+        lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
         
-        Match: {date} at {venue}
-        Score: Blue {b_score} - {r_score} Red
-        Winner: {winner}
-        Blue Squad: {b_team}
-        Red Squad: {r_team}
+        hist_summary = ""
+        if not history_df.empty:
+            recent = history_df.sort_values('Date', ascending=False).head(5)
+            for _, row in recent.iterrows():
+                hist_summary += f"- {row['Date']}: Blue {row['Score_Blue']}-{row['Score_Red']} Red (Winner: {row['Winner']})\n"
+        else:
+            hist_summary = "No matches played yet."
 
-        Style: Use emojis ⚽🔥. Be dramatic about the score. Mention key players.
+        # 2. Construct Prompt
+        prompt = f"""
+        You are the 'SMFC Scout', an expert AI analyst for a 7-a-side football group.
+        
+        Here is the current data:
+        [PLAYER LEADERBOARD]
+        {lb_summary}
+        
+        [RECENT MATCH HISTORY]
+        {hist_summary}
+        
+        User Question: "{user_query}"
+        
+        Instructions:
+        - Answer based ONLY on the data provided.
+        - Be concise, fun, and insightful.
+        - Use emojis ⚽📉📈.
+        - If asked about a specific player, analyze their Win % and form.
+        - If asked about recent games, summarize the trend.
         """
+        
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
@@ -214,7 +234,8 @@ def run_football_app():
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    if 'ai_match_report' not in st.session_state: st.session_state.ai_match_report = ""
+    # AI Chat State
+    if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
 
     # --- GLOBAL CSS ---
     st.markdown("""
@@ -293,6 +314,10 @@ def run_football_app():
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
+        
+        /* AI CHAT BOX STYLE */
+        .ai-box { background: rgba(0,255,128,0.05); border: 1px solid rgba(0,255,128,0.2); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .ai-title { color: #00E676; font-weight: bold; margin-bottom: 5px; font-family: 'Orbitron'; letter-spacing: 1px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -534,13 +559,28 @@ def run_football_app():
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
+            
+            # --- 🤖 NEW AI CHAT SECTION (TOP OF ANALYTICS) ---
+            st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
+            st.markdown("<div class='ai-title'>🤖 SMFC SCOUT AI</div>", unsafe_allow_html=True)
+            user_q = st.text_input("Ask the scout anything... (e.g., 'Who is on fire?', 'Summarize recent games')", key="ai_q")
+            if st.button("📢 Ask Scout"):
+                with st.spinner("Analyzing stats..."):
+                    lb = calculate_leaderboard(df_m, official_names)
+                    ans = ask_ai_scout(user_q, lb, df_m)
+                    st.session_state.ai_chat_response = ans
+            
+            if st.session_state.ai_chat_response:
+                st.info(st.session_state.ai_chat_response)
+            st.markdown("</div>", unsafe_allow_html=True)
+            # ----------------------------------------------------
+
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
             lb = calculate_leaderboard(df_m, official_names)
             
             # --- LEADERBOARD CARDS ---
             if not lb.empty:
-                # Spotlight Top 3 (Simplified for brevity, standard card loop below)
                 max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
@@ -570,44 +610,29 @@ def run_football_app():
             history = df_m.sort_values('Date', ascending=False).head(10)
             
             for _, row in history.iterrows():
-                # Logic for Gold/Grey coloring & Border
                 score_b = int(row['Score_Blue'])
                 score_r = int(row['Score_Red'])
                 
                 b_cls, r_cls = "mc-score-draw", "mc-score-draw"
-                border_color = "#555" # Default Grey for Draw
+                border_color = "#555"
                 
                 win_text, lose_text = "", ""
                 win_team_cls, lose_team_cls = "", ""
                 
-                # Logic to determine Winner/Loser lists
                 if row['Winner'] == "Blue":
-                    b_cls, r_cls = "mc-score-blue", "mc-score-red" # Blue highlight
-                    border_color = "#1c83e1" # Blue Border
-                    
-                    # Winner = Blue Team, Loser = Red Team
-                    win_text = row['Team_Blue']
-                    lose_text = row['Team_Red']
-                    win_team_cls = "neon-gold"
-                    lose_team_cls = "dull-grey"
-                    
+                    b_cls, r_cls = "mc-score-blue", "mc-score-red"
+                    border_color = "#1c83e1"
+                    win_text = row['Team_Blue']; lose_text = row['Team_Red']
+                    win_team_cls = "neon-gold"; lose_team_cls = "dull-grey"
                 elif row['Winner'] == "Red":
                     b_cls, r_cls = "mc-score-blue", "mc-score-red"
-                    border_color = "#ff4b4b" # Red Border
-                    
-                    # Winner = Red Team, Loser = Blue Team
-                    win_text = row['Team_Red']
-                    lose_text = row['Team_Blue']
-                    win_team_cls = "neon-gold"
-                    lose_team_cls = "dull-grey"
+                    border_color = "#ff4b4b"
+                    win_text = row['Team_Red']; lose_text = row['Team_Blue']
+                    win_team_cls = "neon-gold"; lose_team_cls = "dull-grey"
                 else:
-                    # Draw
-                    win_text = row['Team_Blue']
-                    lose_text = row['Team_Red']
-                    win_team_cls = "draw-text"
-                    lose_team_cls = "draw-text"
+                    win_text = row['Team_Blue']; lose_text = row['Team_Red']
+                    win_team_cls = "draw-text"; lose_team_cls = "draw-text"
 
-                # Render Card with Layout
                 st.markdown(f"""
                 <div class='match-card' style='border-left: 4px solid {border_color};'>
                     <div class='mc-left'>
@@ -627,7 +652,6 @@ def run_football_app():
             
             # --- TAB 3 LOG MATCH UPDATE ---
             with st.expander("⚙️ LOG MATCH"):
-                # Updated text area label to specific neon-white instruction
                 wa_txt = st.text_area("Paste the final full result with scoreline and team split")
                 if st.button("Parse"):
                     parsed = parse_match_log(wa_txt)
@@ -636,16 +660,11 @@ def run_football_app():
                 
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
-                    
-                    # Main heading (Neon White)
                     st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
-
                     c_d, c_t, c_v = st.columns(3)
-                    # Standard labels pick up neon-white CSS
                     new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
-                    
                     c_s1, c_s2 = st.columns(2)
                     with c_s1:
                         st.markdown("<div class='neon-blue'>BLUE SCORE</div>", unsafe_allow_html=True)
@@ -656,38 +675,20 @@ def run_football_app():
                     
                     st.markdown("<div class='neon-blue' style='margin-top:10px;'>BLUE TEAM LIST</div>", unsafe_allow_html=True)
                     new_blue = st.text_area("Blue Team", pm['Team_Blue'], label_visibility="collapsed")
-
                     st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
                     new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
-                    # NEW AI REPORT BUTTON (Restored)
-                    st.write("---")
-                    if st.button("🎙️ Generate Match Report (AI)"):
-                        with st.spinner("Writing report..."):
-                            report = generate_ai_report(new_date, new_venue, new_score_b, new_score_r, new_blue, new_red)
-                            st.session_state.ai_match_report = report
-                    
-                    if st.session_state.ai_match_report:
-                        st.text_area("AI Match Report", st.session_state.ai_match_report, height=150)
-                        if st.button("📋 Copy Report"):
-                            st.write("Copy functionality requires JS, please select text above manually for now.")
-
-                    st.write("---")
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
                         try:
                             admin_pw = st.secrets["passwords"]["admin"]
                         except:
                             admin_pw = "1234"
-                            
                         if save_pass == admin_pw:
                             new_row = pd.DataFrame([{
-                                "Date": new_date,
-                                "Score_Blue": new_score_b,
-                                "Score_Red": new_score_r,
+                                "Date": new_date, "Score_Blue": new_score_b, "Score_Red": new_score_r,
                                 "Winner": "Blue" if new_score_b > new_score_r else ("Red" if new_score_r > new_score_b else "Draw"),
-                                "Team_Blue": new_blue,
-                                "Team_Red": new_red,
+                                "Team_Blue": new_blue, "Team_Red": new_red,
                                 "Time": "", "Venue": new_venue, "Cost": "", "Gpay": "", "LateFee": ""
                             }])
                             try:
@@ -695,7 +696,7 @@ def run_football_app():
                                 conn = st.session_state.conn
                                 conn.update(worksheet="Match_History", data=updated_df)
                                 st.session_state.match_db = updated_df
-                                st.success("Match Saved Successfully! (Check Google Sheet)")
+                                st.success("Match Saved Successfully!")
                             except Exception as e:
                                 st.error(f"Failed to save: {e}")
                         else:
@@ -707,7 +708,7 @@ def run_football_app():
         except (FileNotFoundError, KeyError):
             st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
             st.stop()
-
+##
         if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
             st.success("✅ Access Granted")
             st.dataframe(st.session_state.master_db, use_container_width=True)
