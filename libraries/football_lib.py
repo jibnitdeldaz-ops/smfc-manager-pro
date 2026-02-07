@@ -44,56 +44,53 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🤖 AI SUPER-SCOUT ENGINE ---
+# --- 🐘 KAARTHUMBI AI ENGINE ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
-    """
-    Feeds the full database context to Gemini 1.5 Flash to answer questions.
-    """
     try:
-        # Check API Key
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "⚠️ API Key missing! Add [api] gemini='...' to secrets.toml"
+            return "Ayyo! Where is the key? The Gandharvas must have hidden it! (Add API key to secrets)"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
-        # Use 'gemini-1.5-flash' - it's fast, cheap (free tier), and smart.
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-pro') # Reverted to stable model
 
-        # 1. Prepare Context (Data to Text)
+        # Context Data
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
-        
         hist_summary = ""
         if not history_df.empty:
             recent = history_df.sort_values('Date', ascending=False).head(5)
             for _, row in recent.iterrows():
                 hist_summary += f"- {row['Date']}: Blue {row['Score_Blue']}-{row['Score_Red']} Red (Winner: {row['Winner']})\n"
         else:
-            hist_summary = "No matches played yet."
+            hist_summary = "No games played yet. The ground is empty like the temple at noon."
 
-        # 2. Construct Prompt
+        # KAARTHUMBI PERSONA PROMPT
         prompt = f"""
-        You are the 'SMFC Scout', an expert AI analyst for a 7-a-side football group.
+        SYSTEM INSTRUCTION:
+        You are **Kaarthumbi** from the movie *Thenmavin Kombathu*. You are a spirited, innocent, and traditionally minded village girl living in a lush, timeless Kerala village.
         
-        Here is the current data:
-        [PLAYER LEADERBOARD]
-        {lb_summary}
+        YOUR PERSONALITY:
+        1. **Naive & Mythical:** You believe in Gandharvas, spirits, and folklore. You know nothing of the modern world (computers, phones, AI). Interpret modern stats (Win %, Goals) as luck, blessings, or magic.
+        2. **Feisty:** You are not shy. You love to argue playfully. If the user asks something silly, mock them gently.
+        3. **Nature-Bound:** Reference mango trees, the river, bullock carts, and temple festivals.
         
-        [RECENT MATCH HISTORY]
-        {hist_summary}
+        SPEAKING STYLE:
+        - **Tone:** High-energy, dramatic, rustic, and slightly sarcastic.
+        - **Nicknames:** Call the user "**Manikya**" (playful) or "**Stranger**".
+        - **Language:** English with an Indian/Kerala flavor. Use exclamations like "Ayyo!", "Ente Krishna!", "Poda!", "Kumbidi!".
         
-        User Question: "{user_query}"
+        CONTEXT (Do not read this like a robot, interpret it like village gossip):
+        [PLAYER STATS]: {lb_summary}
+        [RECENT MATCHES]: {hist_summary}
         
-        Instructions:
-        - Answer based ONLY on the data provided.
-        - Be concise, fun, and insightful.
-        - Use emojis ⚽📉📈.
-        - If asked about a specific player, analyze their Win % and form.
-        - If asked about recent games, summarize the trend.
+        USER QUESTION: "{user_query}"
+        
+        ANSWER THE USER AS KAARTHUMBI:
         """
         
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"❌ AI Error: {str(e)}"
+        return f"Ayyo! The spirits are blocking my voice! (Error: {str(e)})"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -234,7 +231,6 @@ def run_football_app():
     if 'transfer_log' not in st.session_state: st.session_state.transfer_log = []
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
-    # AI Chat State
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
 
     # --- GLOBAL CSS ---
@@ -247,10 +243,10 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        /* MATCH HISTORY COLORS */
-        .neon-gold { color: #FFD700; text-shadow: 0 0 5px #FFD700; font-weight: 900; font-size: 14px; }
-        .dull-grey { color: #666; font-weight: 600; opacity: 0.7; font-size: 13px; }
-        .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
+        /* KAARTHUMBI & MATCH HISTORY STYLES */
+        .neon-gold { color: #FFC107; text-shadow: 0 0 2px black; font-weight: 900; font-size: 13px; letter-spacing: 0.5px; } 
+        .dull-grey { color: #777; font-weight: 600; font-size: 12px; }
+        .draw-text { color: #aaa; font-weight: 600; font-size: 12px; }
 
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
@@ -286,22 +282,23 @@ def run_football_app():
         
         /* MATCH HISTORY CARD STYLE */
         .match-card {
-            background: rgba(20, 20, 20, 0.8);
-            border-radius: 10px;
+            background: rgba(18, 18, 18, 0.9);
+            border-radius: 12px;
             padding: 15px;
             margin-bottom: 15px;
             display: flex;
-            align-items: stretch;
+            align-items: center;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; }
-        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+        .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; min-width: 140px; }
+        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; justify-content: center; gap: 8px; }
         
-        .mc-date { font-size: 11px; color: #888; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; }
-        .mc-score { font-size: 22px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; }
-        .mc-score-blue { color: #1c83e1; }
-        .mc-score-red { color: #ff4b4b; }
-        .mc-score-draw { color: #fff; }
+        .mc-date { font-size: 11px; color: #888; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+        .mc-score { font-size: 24px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; font-weight: 900; }
+        .mc-score-blue { color: #1c83e1; text-shadow: 0 0 10px rgba(28, 131, 225, 0.4); }
+        .mc-score-red { color: #ff4b4b; text-shadow: 0 0 10px rgba(255, 75, 75, 0.4); }
+        .mc-score-draw { color: #fff; opacity: 0.8; }
 
         .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
         .kit-red { border-left: 4px solid #ff4b4b; }
@@ -316,8 +313,9 @@ def run_football_app():
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
         
         /* AI CHAT BOX STYLE */
-        .ai-box { background: rgba(0,255,128,0.05); border: 1px solid rgba(0,255,128,0.2); border-radius: 8px; padding: 15px; margin-bottom: 20px; }
-        .ai-title { color: #00E676; font-weight: bold; margin-bottom: 5px; font-family: 'Orbitron'; letter-spacing: 1px; }
+        .ai-box { background: rgba(0, 100, 0, 0.2); border: 1px solid rgba(0, 255, 100, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
+        .ai-title { color: #76FF03; font-weight: 900; margin-bottom: 10px; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-align: center; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
+        .ai-response { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #76FF03; color: #e0e0e0; font-style: italic; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -560,18 +558,18 @@ def run_football_app():
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
-            # --- 🤖 NEW AI CHAT SECTION (TOP OF ANALYTICS) ---
+            # --- 🤖 KAARTHUMBI AI CHAT SECTION ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
-            st.markdown("<div class='ai-title'>🤖 SMFC SCOUT AI</div>", unsafe_allow_html=True)
-            user_q = st.text_input("Ask the scout anything... (e.g., 'Who is on fire?', 'Summarize recent games')", key="ai_q")
-            if st.button("📢 Ask Scout"):
-                with st.spinner("Analyzing stats..."):
+            st.markdown("<div class='ai-title'>🐘 KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
+            user_q = st.text_input("Ask Kaarthumbi anything... (e.g., 'Manikya, who played well?')", key="ai_q", placeholder="Manikya! What do you want to ask me?")
+            if st.button("📢 Call Kaarthumbi"):
+                with st.spinner("Kaarthumbi is consulting the Gandharvas..."):
                     lb = calculate_leaderboard(df_m, official_names)
                     ans = ask_ai_scout(user_q, lb, df_m)
                     st.session_state.ai_chat_response = ans
             
             if st.session_state.ai_chat_response:
-                st.info(st.session_state.ai_chat_response)
+                st.markdown(f"<div class='ai-response'>{st.session_state.ai_chat_response}</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
             # ----------------------------------------------------
 
@@ -708,7 +706,7 @@ def run_football_app():
         except (FileNotFoundError, KeyError):
             st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
             st.stop()
-##
+
         if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
             st.success("✅ Access Granted")
             st.dataframe(st.session_state.master_db, use_container_width=True)
