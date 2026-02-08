@@ -44,15 +44,15 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🎭 COMEDY CHAT SHOW ENGINE ---
+# --- 🎭 LEGENDS & JOKERS AI ENGINE ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "System Error: API Key missing in secrets.toml"
+            return "System Error: API Key missing."
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # Robust Model Selection
+        # Model Selection
         model = None
         candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
         for m_name in candidates:
@@ -74,13 +74,18 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
         # --- THE SCRIPTWRITER PROMPT ---
         prompt = f"""
-        You are a comedy scriptwriter for a "WhatsApp Group Chat" analysis of a football team.
+        You are a comedy scriptwriter for a "Football Panel Show" featuring Malayalam movie characters.
         
-        **THE CHARACTERS:**
-        1. **Kaarthumbi (Host):** Innocent, nature-lover. She moderates the chat.
-        2. **Bellary Raja:** Wealthy businessman. Speaks **English with Trivandrum accent**. Obsessed with "Market Value", "Profit", and calling people "Uvve".
-        3. **Appukuttan:** Delusional martial artist. Uses **big, incorrect English words**. Thinks he is a tactical genius but makes no sense. Catchphrase: "Akosoto!".
-        4. **Ponjikkara:** Existential crisis. Confused. He doesn't know who anyone is. "Why are we here?", "Who is this person?", "I want to go home."
+        **THE ANALYSTS (Authentic & Smart):**
+        1. **🔥 Induchoodan (Narasimham):** High energy, fiery. He analyzes the **Stats & Form** seriously. He praises good performance ("He has guts!") and criticizes bad form ("Mone Dinesha! This won't work!").
+        2. **😎 Bellary Raja (Rajamanikyam):** Business tycoon style. He analyzes the **Value & ROI**. "This player is a high-value asset" or "Total loss project". He talks about FOOTBALL value, not stock markets. Uses "Yenthaada uvve".
+
+        **THE JOKERS (Comic Relief):**
+        3. **🥋 Appukuttan (Yodha):** Delusional. Uses big, incorrect English words to sound smart about tactics, but says nonsense. Catchphrase: "Akosoto!".
+        4. **🤪 Ponjikkara (Kalyanaraman):** Confused. He doesn't know who the players are. He is having an existential crisis. "Who is this? Why am I here?".
+
+        **THE HOST:**
+        5. **🐘 Kaarthumbi:** Rustic & innocent. She keeps the show moving.
 
         **DATA:**
         {lb_summary}
@@ -88,20 +93,18 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         
         **USER QUESTION:** "{user_query}"
         
-        **RULES:**
-        1. **Language:** Write in **ENGLISH**. Use Malayalam slang words *only* for flavor (like "Ayyo", "Enda", "Poda").
-        2. **Format:** Output purely as lines like:
-           Kaarthumbi: [Text]
-           Bellary Raja: [Text]
-           Ponjikkara: [Text]
-        3. **Content:** - Don't use repetitive greetings. Dive straight into the specific player/match asked about.
-           - Have them argue with each other.
-           - Ensure Ponjikkara is completely lost/confused about the topic.
-           - Ensure Appukuttan gives advice that sounds smart but is actually stupid.
+        **INSTRUCTIONS:**
+        - Write a dialogue script in **English** (with Malayalam catchphrases).
+        - **Kaarthumbi** starts by directly answering the question based on data.
+        - Then she asks **Induchoodan** or **Bellary** for an expert opinion.
+        - **Appukuttan** or **Ponjikkara** interrupts with something stupid/funny.
+        - **FORMAT:** Kaarthumbi: [Text]
+          Induchoodan: [Text]
+          [etc...]
+        - Keep it punchy and funny. No "Hello" or "Welcome" fillers.
         """
         
         response = model.generate_content(prompt)
-        # Clean up any potential markdown code blocks
         clean_text = response.text.replace("```python", "").replace("```", "").strip()
         return clean_text
         
@@ -170,7 +173,6 @@ def calculate_leaderboard(df_matches, official_names):
         winner = row['Winner']
         blue_team = [x.strip() for x in str(row['Team_Blue']).split(',') if x.strip()]
         red_team = [x.strip() for x in str(row['Team_Red']).split(',') if x.strip()]
-        
         def update(player_name, team_color):
             if player_name not in official_names: return
             if player_name not in stats: stats[player_name] = {'M': 0, 'W': 0, 'L': 0, 'D': 0, 'Form': []}
@@ -180,17 +182,14 @@ def calculate_leaderboard(df_matches, official_names):
             elif winner == 'Draw': p['D'] += 1; res='D'
             else: p['L'] += 1; res='L'
             p['Form'].append(res)
-            
         for p in blue_team: update(p, 'Blue')
         for p in red_team: update(p, 'Red')
-        
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
     res['Win %'] = ((res['W'] / res['M']) * 100).fillna(0).round(0).astype(int)
     res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
-    
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
@@ -258,49 +257,16 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        /* CHAT BUBBLE STYLES */
-        .chat-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 10px; }
-        
-        .chat-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; }
-        
-        .chat-avatar { 
-            width: 45px; height: 45px; 
-            border-radius: 50%; 
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px; font-weight: bold; border: 2px solid rgba(255,255,255,0.2);
-            flex-shrink: 0;
+        .neon-gold { 
+            color: #FFEB3B !important; 
+            font-weight: 900 !important; 
+            font-size: 14px !important; 
+            text-shadow: 1px 1px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000; 
+            letter-spacing: 0.5px;
         }
-        
-        .chat-bubble {
-            padding: 12px 16px;
-            border-radius: 12px;
-            font-family: 'Rajdhani', sans-serif;
-            font-size: 16px;
-            line-height: 1.4;
-            max-width: 85%;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            color: #fff;
-        }
-        
-        .chat-name { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; opacity: 0.8; letter-spacing: 1px; }
-
-        /* CHARACTER THEMES */
-        .char-kaarthumbi .chat-avatar { background: #43a047; }
-        .char-kaarthumbi .chat-bubble { background: linear-gradient(135deg, #2E7D32, #1B5E20); border-top-left-radius: 0; }
-        
-        .char-bellary .chat-avatar { background: #FFC107; color: black; }
-        .char-bellary .chat-bubble { background: linear-gradient(135deg, #FFB300, #FF8F00); color: black; border-top-left-radius: 0; font-weight: 600; }
-        
-        .char-appukuttan .chat-avatar { background: #FF5722; }
-        .char-appukuttan .chat-bubble { background: linear-gradient(135deg, #D84315, #BF360C); border-top-left-radius: 0; }
-        
-        .char-ponjikkara .chat-avatar { background: #607D8B; }
-        .char-ponjikkara .chat-bubble { background: linear-gradient(135deg, #546E7A, #455A64); border-top-left-radius: 0; font-style: italic; }
-
-        /* Standard Styles */
-        .neon-gold { color: #FFEB3B !important; font-weight: 900 !important; font-size: 14px !important; text-shadow: 1px 1px 0 #000; }
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
         .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
+
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
@@ -334,16 +300,17 @@ def run_football_app():
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
         .match-card {
-            background: rgba(20, 20, 20, 0.8);
-            border-radius: 10px;
+            background: rgba(18, 18, 18, 0.9);
+            border-radius: 12px;
             padding: 15px;
             margin-bottom: 15px;
             display: flex;
-            align-items: stretch;
+            align-items: center;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
         .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; min-width: 140px; }
-        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; justify-content: center; gap: 8px; }
         
         .mc-date { font-size: 11px; color: #888; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
         .mc-score { font-size: 24px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; font-weight: 900; }
@@ -362,6 +329,37 @@ def run_football_app():
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
+        
+        /* CHAT BUBBLE STYLES */
+        .chat-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 10px; }
+        .chat-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; }
+        .chat-avatar { 
+            width: 45px; height: 45px; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; border: 2px solid rgba(255,255,255,0.2);
+            flex-shrink: 0;
+        }
+        .chat-bubble {
+            padding: 12px 16px; border-radius: 12px;
+            font-family: 'Rajdhani', sans-serif; font-size: 16px; line-height: 1.4;
+            max-width: 85%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); color: #fff;
+        }
+        .chat-name { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; opacity: 0.8; letter-spacing: 1px; }
+
+        /* CHARACTERS */
+        .char-kaarthumbi .chat-avatar { background: #43a047; }
+        .char-kaarthumbi .chat-bubble { background: linear-gradient(135deg, #2E7D32, #1B5E20); border-top-left-radius: 0; }
+        .char-bellary .chat-avatar { background: #FFC107; color: black; }
+        .char-bellary .chat-bubble { background: linear-gradient(135deg, #FFB300, #FF8F00); color: black; border-top-left-radius: 0; font-weight: 600; }
+        .char-induchoodan .chat-avatar { background: #D50000; }
+        .char-induchoodan .chat-bubble { background: linear-gradient(135deg, #B71C1C, #D50000); border-top-left-radius: 0; }
+        .char-appukuttan .chat-avatar { background: #FF5722; }
+        .char-appukuttan .chat-bubble { background: linear-gradient(135deg, #D84315, #BF360C); border-top-left-radius: 0; }
+        .char-ponjikkara .chat-avatar { background: #607D8B; }
+        .char-ponjikkara .chat-bubble { background: linear-gradient(135deg, #546E7A, #455A64); border-top-left-radius: 0; font-style: italic; }
+        
+        .ai-box { background: rgba(0, 100, 0, 0.1); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
+        .ai-title { color: #76FF03; font-weight: 900; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
     </style>
     """, unsafe_allow_html=True)
 
@@ -605,7 +603,14 @@ def run_football_app():
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
             # --- 🤖 KAARTHUMBI COMEDY CHAT (WHATSAPP STYLE) ---
-            st.markdown("<div style='text-align:center; margin-bottom:15px; color:#4CAF50; font-family:Orbitron; letter-spacing:1px; font-weight:bold;'>🐘 KAARTHUMBI'S COMEDY CORNER</div>", unsafe_allow_html=True)
+            st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
+            
+            col_avatar, col_title = st.columns([1, 5])
+            with col_avatar:
+                if os.path.exists("kaarthumbi.png"): st.image("kaarthumbi.png", width=60)
+                else: st.markdown("🐘", unsafe_allow_html=True)
+            with col_title:
+                st.markdown("<div class='ai-title'>KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
             
             user_q = st.text_input("Ask the panel...", key="ai_q", placeholder="E.g. Who played well? What about Gilson?")
             if st.button("📢 Ask Kaarthumbi"):
@@ -633,6 +638,9 @@ def run_football_app():
                         msg = line.split(":", 1)[1]
                     elif line.lower().startswith("bellary"):
                         char_class, avatar, name = "char-bellary", "😎", "BELLARY RAJA"
+                        msg = line.split(":", 1)[1]
+                    elif line.lower().startswith("induchoodan"):
+                        char_class, avatar, name = "char-induchoodan", "🔥", "INDUCHOODAN"
                         msg = line.split(":", 1)[1]
                     elif line.lower().startswith("appukuttan"):
                         char_class, avatar, name = "char-appukuttan", "🥋", "APPUKUTTAN"
