@@ -11,7 +11,7 @@ import os
 import base64
 import google.generativeai as genai
 
-# --- 🧮 HELPER FUNCTIONS (No Changes) ---
+# --- 🧮 HELPER FUNCTIONS ---
 def extract_whatsapp_players(text):
     text = re.sub(r'[\u200b\u2060\ufeff\xa0]', ' ', text)
     matches = re.findall(r'(?:^|\n)\s*\d+[\.\)]\s*([^\n\r]+)', text)
@@ -44,25 +44,29 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🎭 MALAYALAM MOVIE UNIVERSE AI ENGINE ---
+# --- 🎭 COMEDY PANEL AI ENGINE ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "Ayyo! The Gandharvas stole the API key! (Check secrets.toml)"
+            return "Ayyo! The key is missing! (Check secrets.toml)"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # Robust Model Selection
+        # 1. ROBUST MODEL SELECTION
         model = None
         candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
+        
         for m_name in candidates:
             try:
                 model = genai.GenerativeModel(m_name)
                 break 
-            except: continue
-        if model is None: model = genai.GenerativeModel('gemini-pro')
+            except:
+                continue
+        
+        if model is None:
+            model = genai.GenerativeModel('gemini-pro')
 
-        # Context Data
+        # 2. DATA CONTEXT
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
         hist_summary = ""
         if not history_df.empty:
@@ -70,31 +74,33 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
             for _, row in recent.iterrows():
                 hist_summary += f"- {row['Date']}: Blue {row['Score_Blue']}-{row['Score_Red']} Red (Winner: {row['Winner']})\n"
         else:
-            hist_summary = "No games played recently."
+            hist_summary = "No matches played recently."
 
-        # --- THE SUPER-PROMPT ---
+        # 3. THE PANEL SCRIPT PROMPT
         prompt = f"""
-        You are a scriptwriter for a chaotic, funny Malayali football panel show.
+        You are a scriptwriter for a funny Malayalam movie character panel discussion about football.
         
-        **THE CAST:**
-        1. **🐘 Kaarthumbi (Host):** From *Thenmavin Kombathu*. Innocent, rustic, superstitious. Calls user "Manikya". She opens the discussion.
-        2. **🥋 Appukuttan (Analyst 1):** From *Yodha*. Cowardly, confused, thinks he is a martial artist ("Akosoto!"). Jealous of good players. Uses broken logic.
-        3. **😎 Bellary Raja (Analyst 2):** From *Rajamanikyam*. Loud, flashy businessman. Uses Trivandrum slang ("Yenthaada uvve", "Qalbe"). Obsessed with "Market value" and money.
-        4. **🕶️ Stephen Nedumpally (Analyst 3):** From *Lucifer*. Dark, intense, political. Speaks few words but they are heavy. Sees football as a power struggle.
-        5. **🔥 Induchoodan (Analyst 4):** From *Narasimham*. Fiery, loud, moustache-twirling energy. Famous line: "Mone Dinesha!".
-        
-        **DATA TO DISCUSS:**
-        [LEADERBOARD]: {lb_summary}
-        [RECENT MATCHES]: {hist_summary}
+        **THE HOST:**
+        **🐘 Kaarthumbi** (*Thenmavin Kombathu*): Innocent, rustic, superstitious. Calls user "Manikya". She answers first, then asks a guest for their opinion.
+
+        **THE GUESTS (Pick 1 or 2 relevant ones):**
+        1. **Appukuttan** (*Yodha*): Cowardly martial artist. Says "Akosoto!". Claims he knows tactics but is clueless.
+        2. **Bellary Raja** (*Rajamanikyam*): Loud businessman. Trivandrum slang ("Yenthaada uvve", "Qalbe"). Obsessed with "Market value".
+        3. **Stephen Nedumpally** (*Lucifer*): Dark, political, intense. Sees football as a power struggle. "Khurashi..."
+        4. **Induchoodan** (*Narasimham*): Fiery, explosive energy. "Mone Dinesha!".
+
+        **DATA:**
+        Players: {lb_summary}
+        Matches: {hist_summary}
         
         **USER QUESTION:** "{user_query}"
         
         **INSTRUCTIONS:**
-        - Create a short dialogue script (max 200 words total).
-        - Kaarthumbi answers first, then asks ONE or TWO others for their opinion.
-        - Not everyone needs to speak every time, just the funniest ones for the context.
-        - Use their specific catchphrases (in English/Manglish).
-        - Format neatly with **Names:** at the start of lines.
+        - Write a short dialogue script (max 150 words).
+        - Start with Kaarthumbi answering the user.
+        - Then she must ask one guest: "What do you think, [Guest Name]?"
+        - The guest responds in their specific style/catchphrases.
+        - Use emojis for each character.
         """
         
         response = model.generate_content(prompt)
@@ -103,7 +109,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     except Exception as e:
         return f"Ayyo! The panel is fighting! (Error: {str(e)})"
 
-# --- 🧠 ANALYTICS & PARSING (Standard) ---
+# --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
     data = {
         "Date": datetime.today().strftime('%Y-%m-%d'),
@@ -165,6 +171,7 @@ def calculate_leaderboard(df_matches, official_names):
         winner = row['Winner']
         blue_team = [x.strip() for x in str(row['Team_Blue']).split(',') if x.strip()]
         red_team = [x.strip() for x in str(row['Team_Red']).split(',') if x.strip()]
+        
         def update(player_name, team_color):
             if player_name not in official_names: return
             if player_name not in stats: stats[player_name] = {'M': 0, 'W': 0, 'L': 0, 'D': 0, 'Form': []}
@@ -174,14 +181,17 @@ def calculate_leaderboard(df_matches, official_names):
             elif winner == 'Draw': p['D'] += 1; res='D'
             else: p['L'] += 1; res='L'
             p['Form'].append(res)
+            
         for p in blue_team: update(p, 'Blue')
         for p in red_team: update(p, 'Red')
+        
     if not stats: return pd.DataFrame()
     res = pd.DataFrame.from_dict(stats, orient='index')
     res['Win %'] = ((res['W'] / res['M']) * 100).fillna(0).round(0).astype(int)
     res = res[res['M'] >= 2]
     res = res.sort_values(by=['Win %', 'W'], ascending=[False, False])
     res['Rank'] = range(1, len(res) + 1)
+    
     icon_map = {'W': '✅', 'L': '❌', 'D': '➖'}
     res['Form_Icons'] = res['Form'].apply(lambda x: " ".join([icon_map.get(i, i) for i in x[-5:]]))
     return res
@@ -291,6 +301,7 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
+        /* MATCH HISTORY CARD STYLE */
         .match-card {
             background: rgba(18, 18, 18, 0.9);
             border-radius: 12px;
@@ -325,7 +336,7 @@ def run_football_app():
         /* AI CHAT BOX STYLE */
         .ai-box { background: rgba(0, 100, 0, 0.1); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
         .ai-title { color: #76FF03; font-weight: 900; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
-        .ai-response { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #76FF03; color: #e0e0e0; font-style: italic; }
+        .ai-response { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #76FF03; color: #e0e0e0; font-style: italic; white-space: pre-wrap; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -696,14 +707,6 @@ def run_football_app():
                     st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
                     new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
                     
-                    # NEW AI REPORT BUTTON (Restored)
-                    st.write("---")
-                    if st.button("🎙️ Generate Match Report (AI)"):
-                        # Use the new panel function for reports too? 
-                        # Or keep it simple. Let's keep it simple for now to save tokens.
-                        pass 
-
-                    st.write("---")
                     save_pass = st.text_input("Admin Password", type="password")
                     if st.button("💾 SAVE MATCH TO DB"):
                         try:
