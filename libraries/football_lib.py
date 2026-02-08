@@ -74,16 +74,18 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
         # --- THE PROMPT ---
         prompt = f"""
-        You are writing a script for a Football Analysis Panel.
+        You are a comedy scriptwriter for a "Football Panel Show" with Malayalam movie characters.
         
-        **THE HOST:**
-        1. **🐘 Kaarthumbi (Left Side):** Rustic, innocent, moderates. "Ayyo", "Manikya".
+        **HOST (Left Side):**
+        1. **🐘 Kaarthumbi:** Rustic, innocent. She asks the others.
 
-        **THE GUESTS (Right Side):**
-        2. **🔥 Induchoodan (Expert):** Fiery, aggressive. "Mone Dinesha!", "Guts!", "Fire!".
-        3. **😎 Bellary Raja (Expert):** Business tycoon. "Yenthaada uvve", "Profit/Loss", "ROI".
-        4. **🥋 Appukuttan (Clown):** Fake martial artist. "Akosoto!", uses big wrong words ("Tactical Constipation").
-        5. **🤪 Ponjikkara (Clown):** Confused. "Who is this?", "I want to go home".
+        **EXPERTS (Right Side):**
+        2. **🔥 Induchoodan:** Fiery analyst. "Mone Dinesha!", "Guts!", "Performance!".
+        3. **😎 Bellary Raja:** Business analyst. "Yenthaada uvve", "ROI", "Market Value".
+
+        **JOKERS (Right Side - Include at least one):**
+        4. **🥋 Appukuttan:** Delusional. "Akosoto!". Uses big wrong English words.
+        5. **🤪 Ponjikkara:** Confused. "Who is this?", "I want to go home".
 
         **DATA:**
         {lb_summary}
@@ -92,11 +94,11 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         **USER QUESTION:** "{user_query}"
         
         **INSTRUCTIONS:**
-        - Write a dialogue script.
+        - Write a short script (3-4 lines).
         - **Kaarthumbi** MUST start.
-        - Then 1 or 2 Guests respond.
+        - Then 1 Expert AND 1 Joker must respond.
         - **FORMAT:** Start every line with "Name: Message" (e.g. "Kaarthumbi: Hello!")
-        - Do NOT use bold asterisks for names.
+        - Do NOT use bold marks (asterisks) for names.
         """
         
         response = model.generate_content(prompt)
@@ -323,7 +325,7 @@ def run_football_app():
         .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
         .spotlight-box { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%); border-radius: 10px; padding: 15px; text-align: center; height: 100%; border: 1px solid rgba(255,255,255,0.1); }
         .sp-value { font-size: 32px; font-weight: 900; color: #ffffff; margin: 5px 0; text-shadow: 0 0 15px rgba(255,255,255,0.9), 0 0 30px rgba(255,255,255,0.5); }
-        .sp-title { font-size: 14px; font-weight: 900; color: #ffffff; text-transform: uppercase; margin-bottom: 10px; }
+        .sp-title { font-size: 16px; font-weight: 900; color: #ffffff; text-transform: uppercase; margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 18px; font-weight: 900; text-transform: uppercase; }
         
         .ai-box { background: rgba(0, 100, 0, 0.1); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
