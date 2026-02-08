@@ -44,7 +44,7 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🎭 COMEDY PANEL AI ENGINE ---
+# --- 🎭 COMEDY PANEL AI ENGINE (SCRIPTWRITER MODE) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
@@ -76,19 +76,16 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         else:
             hist_summary = "No matches played recently."
 
-        # 3. THE PANEL SCRIPT PROMPT
+        # 3. THE SCRIPT PROMPT (Panel Mode)
         prompt = f"""
-        You are a scriptwriter for a funny Malayalam movie character panel discussion about football.
+        You are a scriptwriter for a funny Malayalam movie character panel show discussing football.
         
-        **THE HOST:**
-        **🐘 Kaarthumbi** (*Thenmavin Kombathu*): Innocent, rustic, superstitious. Calls user "Manikya". She answers first, then asks a guest for their opinion.
-
-        **THE GUESTS (Pick 1 or 2 relevant ones):**
-        1. **Appukuttan** (*Yodha*): Cowardly martial artist. Says "Akosoto!". Claims he knows tactics but is clueless.
-        2. **Bellary Raja** (*Rajamanikyam*): Loud businessman. Trivandrum slang ("Yenthaada uvve", "Qalbe"). Obsessed with "Market value".
-        3. **Stephen Nedumpally** (*Lucifer*): Dark, political, intense. Sees football as a power struggle. "Khurashi..."
-        4. **Induchoodan** (*Narasimham*): Fiery, explosive energy. "Mone Dinesha!".
-
+        **THE CAST:**
+        1. **🐘 Kaarthumbi (Host):** From *Thenmavin Kombathu*. Innocent, rustic. Calls user "Manikya". She opens the topic.
+        2. **🤪 Ponjikkara (Guest):** From *Kalyanaraman*. Confused, desperate for attention. Catchphrase: "Enthelum parayado!" (Say something!).
+        3. **🥋 Appukuttan (Guest):** From *Yodha*. Fake martial artist. Says "Akosoto!". Claims he knows tactics but is clueless.
+        4. **😎 Bellary Raja (Guest):** From *Rajamanikyam*. Loud businessman. Trivandrum slang ("Yenthaada uvve").
+        
         **DATA:**
         Players: {lb_summary}
         Matches: {hist_summary}
@@ -96,11 +93,12 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         **USER QUESTION:** "{user_query}"
         
         **INSTRUCTIONS:**
-        - Write a short dialogue script (max 150 words).
-        - Start with Kaarthumbi answering the user.
-        - Then she must ask one guest: "What do you think, [Guest Name]?"
-        - The guest responds in their specific style/catchphrases.
-        - Use emojis for each character.
+        - Write a **Dialogue Script** (Script format).
+        - **Kaarthumbi** MUST start. She answers the user briefly, then passes the mic to a guest.
+        - **The Guest** (pick the funniest one for the context) MUST reply to her or the user.
+        - **Ponjikkara** should interrupt if the logic is confusing ("I don't understand anything!").
+        - Use emojis for each speaker.
+        - Keep it under 150 words.
         """
         
         response = model.generate_content(prompt)
