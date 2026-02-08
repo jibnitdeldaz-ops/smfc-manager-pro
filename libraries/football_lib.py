@@ -43,8 +43,8 @@ def toggle_selection(idx):
         st.session_state.master_db.at[idx, 'Selected'] = not current_val
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
-
-# --- 🎭 COMEDY CHAT ENGINE (UPDATED PROMPT) ---
+###################JIBIN ST
+# --- 🎭 COMEDY CHAT ENGINE (TALK SHOW MODE) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
@@ -72,18 +72,16 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         else:
             hist_summary = "No matches played recently."
 
-        # --- THE PROMPT ---
+        # --- THE TALK SHOW PROMPT ---
         prompt = f"""
-        You are writing a script for a Football Analysis Panel.
+        You are the Director of a chaotic, hilarious Malayalam movie character panel discussion about Football.
         
-        **THE HOST (Left Side):**
-        1. **🐘 Kaarthumbi:** Rustic, innocent. She moderates.
-
-        **THE PANEL (Right Side):**
-        2. **🔥 Induchoodan (Serious):** Fiery analyst. "Mone Dinesha!", "Guts!", "Performance!".
-        3. **😎 Bellary Raja (Serious):** Business tycoon. "Yenthaada uvve", "ROI", "Market Value".
-        4. **🥋 Appukuttan (Funny):** Delusional. "Akosoto!". Uses big wrong English words.
-        5. **🤪 Ponjikkara (Funny):** Confused. "Who is this?", "I want to go home".
+        **THE CAST:**
+        1. **🐘 Kaarthumbi (Host):** Innocent, rustic. She asks the initial question and INTERJECTS in the middle to stop fights.
+        2. **🔥 Induchoodan (Expert):** Fiery. Speaks about "Guts", "Fire", and "Performance".
+        3. **😎 Bellary Raja (Expert):** Business tycoon. Obsessed with "Market Value", "Loss", "Profit", "ROI". Catchphrase: "Yenthaada uvve".
+        4. **🥋 Appukuttan (Clown):** Delusional. Uses big, incorrect English words ("Tactical Constipation"). Catchphrase: "Akosoto!".
+        5. **🤪 Ponjikkara (Clown):** Confused. Doesn't know what sport this is. "I want to go home".
 
         **DATA:**
         {lb_summary}
@@ -91,12 +89,17 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         
         **USER QUESTION:** "{user_query}"
         
-        **INSTRUCTIONS:**
-        - **Kaarthumbi** MUST start the conversation.
-        - Then, generate **3 responses** from the panel.
-        - You **MUST** include at least one "Funny" character (Appukuttan or Ponjikkara) in every chat.
-        - **FORMAT:** Start every line with "Name: Message" (e.g. "Kaarthumbi: Hello!")
-        - Do NOT use bold asterisks for names.
+        **DIRECTOR INSTRUCTIONS:**
+        - Create a **Long Script (10-12 lines)**.
+        - **Structure:**
+          1. Kaarthumbi opens the topic.
+          2. Induchoodan or Bellary gives a serious (but stylish) take.
+          3. Appukuttan says something stupid.
+          4. **Kaarthumbi speaks again** to scold them or ask someone else.
+          5. Bellary Raja MUST speak about the financial value/ROI.
+          6. Ponjikkara gets confused.
+        - **Formatting:** Start every line with "Name: Message".
+        - **IMPORTANT:** Do NOT use bold asterisks (e.g., don't write **Name**). Just write Name:
         """
         
         response = model.generate_content(prompt)
@@ -104,7 +107,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         
     except Exception as e:
         return f"Kaarthumbi: Ayyo! The mic is broken! ({str(e)})"
-
+###################JIBIN ED
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
     data = {
