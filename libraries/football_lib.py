@@ -53,25 +53,22 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
         # 1. ROBUST MODEL SELECTION
-        # We try the most likely models in order.
+        # We try the most likely models in order based on your error logs
         model = None
-        errors = []
         
-        candidates = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        # Priority list: Start with the newest one your account has access to
+        candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
         
         for m_name in candidates:
             try:
-                test_model = genai.GenerativeModel(m_name)
-                # Quick handshake to see if model exists/works
-                # We don't generate yet, just assigning
-                model = test_model
-                break
-            except Exception as e:
-                errors.append(f"{m_name}: {str(e)}")
+                # Just define the model, don't generate yet
+                model = genai.GenerativeModel(m_name)
+                break 
+            except:
                 continue
         
+        # Fallback
         if model is None:
-            # If all fail, default to generic 'gemini-pro' as last resort
             model = genai.GenerativeModel('gemini-pro')
 
         # 2. DATA CONTEXT
@@ -301,13 +298,14 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
+        /* MATCH HISTORY CARD STYLE */
         .match-card {
             background: rgba(18, 18, 18, 0.9);
             border-radius: 12px;
             padding: 15px;
             margin-bottom: 15px;
             display: flex;
-            align-items: stretch;
+            align-items: center;
             transition: all 0.3s ease;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
@@ -581,13 +579,13 @@ def run_football_app():
             # --- 🤖 KAARTHUMBI AI CHAT SECTION ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
             
-            # TITLE WITH AVATAR
+            # TITLE WITH AVATAR (Looks for 'kaarthumbi.png' in root)
             col_avatar, col_title = st.columns([1, 5])
             with col_avatar:
                 if os.path.exists("kaarthumbi.png"):
                     st.image("kaarthumbi.png", width=60)
                 else:
-                    st.markdown("🐘", unsafe_allow_html=True) # Fallback icon
+                    st.markdown("🐘", unsafe_allow_html=True) 
             with col_title:
                 st.markdown("<div class='ai-title'>KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
             
