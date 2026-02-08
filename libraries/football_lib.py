@@ -44,7 +44,7 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🎭 COMEDY CHAT ENGINE ---
+# --- 🎭 COMEDY CHAT ENGINE (UPDATED PROMPT) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
@@ -74,18 +74,16 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
         # --- THE PROMPT ---
         prompt = f"""
-        You are a comedy scriptwriter for a "Football Panel Show" with Malayalam movie characters.
+        You are writing a script for a Football Analysis Panel.
         
-        **HOST (Left Side):**
-        1. **🐘 Kaarthumbi:** Rustic, innocent. She asks the others.
+        **THE HOST (Left Side):**
+        1. **🐘 Kaarthumbi:** Rustic, innocent. She moderates.
 
-        **EXPERTS (Right Side):**
-        2. **🔥 Induchoodan:** Fiery analyst. "Mone Dinesha!", "Guts!", "Performance!".
-        3. **😎 Bellary Raja:** Business analyst. "Yenthaada uvve", "ROI", "Market Value".
-
-        **JOKERS (Right Side - Include at least one):**
-        4. **🥋 Appukuttan:** Delusional. "Akosoto!". Uses big wrong English words.
-        5. **🤪 Ponjikkara:** Confused. "Who is this?", "I want to go home".
+        **THE PANEL (Right Side):**
+        2. **🔥 Induchoodan (Serious):** Fiery analyst. "Mone Dinesha!", "Guts!", "Performance!".
+        3. **😎 Bellary Raja (Serious):** Business tycoon. "Yenthaada uvve", "ROI", "Market Value".
+        4. **🥋 Appukuttan (Funny):** Delusional. "Akosoto!". Uses big wrong English words.
+        5. **🤪 Ponjikkara (Funny):** Confused. "Who is this?", "I want to go home".
 
         **DATA:**
         {lb_summary}
@@ -94,11 +92,11 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         **USER QUESTION:** "{user_query}"
         
         **INSTRUCTIONS:**
-        - Write a short script (3-4 lines).
-        - **Kaarthumbi** MUST start.
-        - Then 1 Expert AND 1 Joker must respond.
+        - **Kaarthumbi** MUST start the conversation.
+        - Then, generate **3 responses** from the panel.
+        - You **MUST** include at least one "Funny" character (Appukuttan or Ponjikkara) in every chat.
         - **FORMAT:** Start every line with "Name: Message" (e.g. "Kaarthumbi: Hello!")
-        - Do NOT use bold marks (asterisks) for names.
+        - Do NOT use bold asterisks for names.
         """
         
         response = model.generate_content(prompt)
