@@ -44,7 +44,7 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 ###################JIBIN ST
-# --- 🎭 COMEDY CHAT ENGINE (TALK SHOW MODE) ---
+# --- 🎭 COMEDY CHAT ENGINE (CREATIVE DIRECTOR MODE) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
@@ -52,7 +52,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # Model Selection
+        # Model Selection (Robust)
         model = None
         candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
         for m_name in candidates:
@@ -72,16 +72,19 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         else:
             hist_summary = "No matches played recently."
 
-        # --- THE TALK SHOW PROMPT ---
+        # --- THE CREATIVE DIRECTOR PROMPT ---
         prompt = f"""
-        You are the Director of a chaotic, hilarious Malayalam movie character panel discussion about Football.
+        You are the Creative Director of a lively, funny Football Talk Show featuring Malayalam movie characters.
         
+        **CORE INSTRUCTION:** - Speak **90% English**. Use Malayalam words *only* for specific catchphrases/flavor.
+        - **Avoid Repetition:** Do not use the same intro or outro every time. Be fresh and reactive.
+
         **THE CAST:**
-        1. **🐘 Kaarthumbi (Host):** Innocent, rustic. She asks the initial question and INTERJECTS in the middle to stop fights.
-        2. **🔥 Induchoodan (Expert):** Fiery. Speaks about "Guts", "Fire", and "Performance".
-        3. **😎 Bellary Raja (Expert):** Business tycoon. Obsessed with "Market Value", "Loss", "Profit", "ROI". Catchphrase: "Yenthaada uvve".
-        4. **🥋 Appukuttan (Clown):** Delusional. Uses big, incorrect English words ("Tactical Constipation"). Catchphrase: "Akosoto!".
-        5. **🤪 Ponjikkara (Clown):** Confused. Doesn't know what sport this is. "I want to go home".
+        1. **🐘 Kaarthumbi (Host):** Rustic, innocent, but tries to keep order. She directs the conversation.
+        2. **🔥 Induchoodan (The Aggressive Analyst):** He looks at **Effort & Guts**. If stats are bad, he gets angry ("This is not football, this is sleeping!"). If good, he roars approval. Catchphrase: "Mone Dinesha!".
+        3. **😎 Bellary Raja (The "Value" Analyst):** He judges **Worth**. Not stock markets, but *Football Value*. "Is this player worth the team's time?", "High value asset!", "Total waste of jersey!". slang: "Yenthaada uvve".
+        4. **🥋 Appukuttan (The Pseudo-Intellectual):** He tries to analyze tactics but uses **completely wrong, fancy English words**. (e.g., "This player needs more *photosynthesis* on the wing!").
+        5. **🤪 Ponjikkara (The Confused One):** He completely **misunderstands the game**. He asks absurd questions ("Is the ball round?", "Why are they running, can't we take an auto?", "Is 'Goal' a type of curry?").
 
         **DATA:**
         {lb_summary}
@@ -89,17 +92,16 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         
         **USER QUESTION:** "{user_query}"
         
-        **DIRECTOR INSTRUCTIONS:**
-        - Create a **Long Script (10-12 lines)**.
-        - **Structure:**
-          1. Kaarthumbi opens the topic.
-          2. Induchoodan or Bellary gives a serious (but stylish) take.
-          3. Appukuttan says something stupid.
-          4. **Kaarthumbi speaks again** to scold them or ask someone else.
-          5. Bellary Raja MUST speak about the financial value/ROI.
-          6. Ponjikkara gets confused.
-        - **Formatting:** Start every line with "Name: Message".
-        - **IMPORTANT:** Do NOT use bold asterisks (e.g., don't write **Name**). Just write Name:
+        **SCRIPT DIRECTIONS:**
+        - **Length:** 10-12 lines of dialogue.
+        - **Flow:**
+          1. Kaarthumbi answers the question using the Data.
+          2. She asks the panel.
+          3. Induchoodan or Bellary gives a strong opinion (Football context).
+          4. Appukuttan says something stupid trying to sound smart.
+          5. Kaarthumbi reacts or scolds.
+          6. Ponjikkara asks something completely absurd and unrelated to logic.
+        - **Format:** "Name: Message" (No bolding).
         """
         
         response = model.generate_content(prompt)
