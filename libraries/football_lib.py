@@ -44,29 +44,25 @@ def toggle_selection(idx):
         if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
         st.session_state.ui_version += 1
 
-# --- 🎭 COMEDY PANEL AI ENGINE (SCRIPTWRITER MODE) ---
+# --- 🎭 COMEDY CHAT SHOW ENGINE ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     try:
         if "api" not in st.secrets or "gemini" not in st.secrets["api"]:
-            return "Ayyo! The key is missing! (Check secrets.toml)"
+            return "System Error: API Key missing in secrets.toml"
 
         genai.configure(api_key=st.secrets["api"]["gemini"])
         
-        # 1. ROBUST MODEL SELECTION
+        # Robust Model Selection
         model = None
         candidates = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-pro']
-        
         for m_name in candidates:
             try:
                 model = genai.GenerativeModel(m_name)
                 break 
-            except:
-                continue
-        
-        if model is None:
-            model = genai.GenerativeModel('gemini-pro')
+            except: continue
+        if model is None: model = genai.GenerativeModel('gemini-pro')
 
-        # 2. DATA CONTEXT
+        # Data Context
         lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
         hist_summary = ""
         if not history_df.empty:
@@ -76,36 +72,41 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
         else:
             hist_summary = "No matches played recently."
 
-        # 3. THE SCRIPT PROMPT (Panel Mode)
+        # --- THE SCRIPTWRITER PROMPT ---
         prompt = f"""
-        You are a scriptwriter for a funny Malayalam movie character panel show discussing football.
+        You are a comedy scriptwriter for a "WhatsApp Group Chat" analysis of a football team.
         
-        **THE CAST:**
-        1. **🐘 Kaarthumbi (Host):** From *Thenmavin Kombathu*. Innocent, rustic. Calls user "Manikya". She opens the topic.
-        2. **🤪 Ponjikkara (Guest):** From *Kalyanaraman*. Confused, desperate for attention. Catchphrase: "Enthelum parayado!" (Say something!).
-        3. **🥋 Appukuttan (Guest):** From *Yodha*. Fake martial artist. Says "Akosoto!". Claims he knows tactics but is clueless.
-        4. **😎 Bellary Raja (Guest):** From *Rajamanikyam*. Loud businessman. Trivandrum slang ("Yenthaada uvve").
-        
+        **THE CHARACTERS:**
+        1. **Kaarthumbi (Host):** Innocent, nature-lover. She moderates the chat.
+        2. **Bellary Raja:** Wealthy businessman. Speaks **English with Trivandrum accent**. Obsessed with "Market Value", "Profit", and calling people "Uvve".
+        3. **Appukuttan:** Delusional martial artist. Uses **big, incorrect English words**. Thinks he is a tactical genius but makes no sense. Catchphrase: "Akosoto!".
+        4. **Ponjikkara:** Existential crisis. Confused. He doesn't know who anyone is. "Why are we here?", "Who is this person?", "I want to go home."
+
         **DATA:**
-        Players: {lb_summary}
-        Matches: {hist_summary}
+        {lb_summary}
+        {hist_summary}
         
         **USER QUESTION:** "{user_query}"
         
-        **INSTRUCTIONS:**
-        - Write a **Dialogue Script** (Script format).
-        - **Kaarthumbi** MUST start. She answers the user briefly, then passes the mic to a guest.
-        - **The Guest** (pick the funniest one for the context) MUST reply to her or the user.
-        - **Ponjikkara** should interrupt if the logic is confusing ("I don't understand anything!").
-        - Use emojis for each speaker.
-        - Keep it under 150 words.
+        **RULES:**
+        1. **Language:** Write in **ENGLISH**. Use Malayalam slang words *only* for flavor (like "Ayyo", "Enda", "Poda").
+        2. **Format:** Output purely as lines like:
+           Kaarthumbi: [Text]
+           Bellary Raja: [Text]
+           Ponjikkara: [Text]
+        3. **Content:** - Don't use repetitive greetings. Dive straight into the specific player/match asked about.
+           - Have them argue with each other.
+           - Ensure Ponjikkara is completely lost/confused about the topic.
+           - Ensure Appukuttan gives advice that sounds smart but is actually stupid.
         """
         
         response = model.generate_content(prompt)
-        return response.text
+        # Clean up any potential markdown code blocks
+        clean_text = response.text.replace("```python", "").replace("```", "").strip()
+        return clean_text
         
     except Exception as e:
-        return f"Ayyo! The panel is fighting! (Error: {str(e)})"
+        return f"System Error: {str(e)}"
 
 # --- 🧠 ANALYTICS & PARSING ---
 def parse_match_log(text):
@@ -257,16 +258,49 @@ def run_football_app():
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
         
-        .neon-gold { 
-            color: #FFEB3B !important; 
-            font-weight: 900 !important; 
-            font-size: 14px !important; 
-            text-shadow: 1px 1px 0px #000, -1px -1px 0px #000, 1px -1px 0px #000, -1px 1px 0px #000; 
-            letter-spacing: 0.5px;
+        /* CHAT BUBBLE STYLES */
+        .chat-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 10px; }
+        
+        .chat-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; }
+        
+        .chat-avatar { 
+            width: 45px; height: 45px; 
+            border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 24px; font-weight: bold; border: 2px solid rgba(255,255,255,0.2);
+            flex-shrink: 0;
         }
+        
+        .chat-bubble {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 16px;
+            line-height: 1.4;
+            max-width: 85%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            color: #fff;
+        }
+        
+        .chat-name { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; opacity: 0.8; letter-spacing: 1px; }
+
+        /* CHARACTER THEMES */
+        .char-kaarthumbi .chat-avatar { background: #43a047; }
+        .char-kaarthumbi .chat-bubble { background: linear-gradient(135deg, #2E7D32, #1B5E20); border-top-left-radius: 0; }
+        
+        .char-bellary .chat-avatar { background: #FFC107; color: black; }
+        .char-bellary .chat-bubble { background: linear-gradient(135deg, #FFB300, #FF8F00); color: black; border-top-left-radius: 0; font-weight: 600; }
+        
+        .char-appukuttan .chat-avatar { background: #FF5722; }
+        .char-appukuttan .chat-bubble { background: linear-gradient(135deg, #D84315, #BF360C); border-top-left-radius: 0; }
+        
+        .char-ponjikkara .chat-avatar { background: #607D8B; }
+        .char-ponjikkara .chat-bubble { background: linear-gradient(135deg, #546E7A, #455A64); border-top-left-radius: 0; font-style: italic; }
+
+        /* Standard Styles */
+        .neon-gold { color: #FFEB3B !important; font-weight: 900 !important; font-size: 14px !important; text-shadow: 1px 1px 0 #000; }
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
         .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
-
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000000 !important; border-radius: 5px !important; }
         div[data-baseweb="base-input"] input { color: #000000 !important; -webkit-text-fill-color: #000000 !important; font-weight: bold !important; }
         div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
@@ -299,19 +333,17 @@ def run_football_app():
         .lb-form { font-size: 14px; margin-right: 15px; letter-spacing: 2px; }
         .lb-winrate { font-size: 22px; font-weight: 900; color: #00E676; text-shadow: 0 0 10px rgba(0, 230, 118, 0.4); }
         
-        /* MATCH HISTORY CARD STYLE */
         .match-card {
-            background: rgba(18, 18, 18, 0.9);
-            border-radius: 12px;
+            background: rgba(20, 20, 20, 0.8);
+            border-radius: 10px;
             padding: 15px;
             margin-bottom: 15px;
             display: flex;
-            align-items: center;
+            align-items: stretch;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
         .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; min-width: 140px; }
-        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; justify-content: center; gap: 6px; }
         
         .mc-date { font-size: 11px; color: #888; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
         .mc-score { font-size: 24px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; font-weight: 900; }
@@ -330,11 +362,6 @@ def run_football_app():
         .sp-name { color: #ffffff; font-size: 20px; font-weight: 900; text-transform: uppercase; text-shadow: 0 0 10px rgba(255,255,255,0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .change-log-item { color: #00E676; font-size: 13px; font-family: monospace; border-left: 2px solid #00E676; padding-left: 8px; margin-bottom: 4px; }
         div.stButton > button { background: linear-gradient(90deg, #D84315 0%, #FF5722 100%) !important; color: white !important; font-weight: 900 !important; border: none !important; height: 55px; font-size: 20px !important; text-transform: uppercase; width: 100%; box-shadow: 0 4px 15px rgba(216, 67, 21, 0.4); }
-        
-        /* AI CHAT BOX STYLE */
-        .ai-box { background: rgba(0, 100, 0, 0.1); border: 1px solid rgba(0, 255, 100, 0.2); border-radius: 10px; padding: 15px; margin-bottom: 25px; }
-        .ai-title { color: #76FF03; font-weight: 900; font-family: 'Orbitron'; letter-spacing: 1.5px; font-size: 18px; text-shadow: 0 0 10px rgba(118, 255, 3, 0.5); }
-        .ai-response { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 8px; margin-top: 10px; border-left: 3px solid #76FF03; color: #e0e0e0; font-style: italic; white-space: pre-wrap; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -577,167 +604,102 @@ def run_football_app():
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
-            # --- 🤖 KAARTHUMBI AI CHAT SECTION ---
-            st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
+            # --- 🤖 KAARTHUMBI COMEDY CHAT (WHATSAPP STYLE) ---
+            st.markdown("<div style='text-align:center; margin-bottom:15px; color:#4CAF50; font-family:Orbitron; letter-spacing:1px; font-weight:bold;'>🐘 KAARTHUMBI'S COMEDY CORNER</div>", unsafe_allow_html=True)
             
-            # TITLE WITH AVATAR (Looks for 'kaarthumbi.png' in root)
-            col_avatar, col_title = st.columns([1, 5])
-            with col_avatar:
-                if os.path.exists("kaarthumbi.png"):
-                    st.image("kaarthumbi.png", width=60)
-                else:
-                    st.markdown("🐘", unsafe_allow_html=True) 
-            with col_title:
-                st.markdown("<div class='ai-title'>KAARTHUMBI'S CORNER</div>", unsafe_allow_html=True)
-            
-            user_q = st.text_input("Ask Kaarthumbi anything... (e.g., 'Manikya, who played well?')", key="ai_q", placeholder="Manikya! What do you want to ask me?")
+            user_q = st.text_input("Ask the panel...", key="ai_q", placeholder="E.g. Who played well? What about Gilson?")
             if st.button("📢 Ask Kaarthumbi"):
-                with st.spinner("Kaarthumbi is consulting the Gandharvas..."):
+                with st.spinner("Panel is arguing..."):
                     lb = calculate_leaderboard(df_m, official_names)
                     ans = ask_ai_scout(user_q, lb, df_m)
                     st.session_state.ai_chat_response = ans
             
+            # PARSE AND RENDER BUBBLES
             if st.session_state.ai_chat_response:
-                st.markdown(f"<div class='ai-response'>{st.session_state.ai_chat_response}</div>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            # ----------------------------------------------------
-
+                st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
+                lines = st.session_state.ai_chat_response.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line: continue
+                    
+                    # Identify Speaker
+                    char_class = "char-host"
+                    avatar = "🐘"
+                    name = "Kaarthumbi"
+                    msg = line
+                    
+                    if line.lower().startswith("kaarthumbi:"):
+                        char_class, avatar, name = "char-kaarthumbi", "🐘", "KAARTHUMBI"
+                        msg = line.split(":", 1)[1]
+                    elif line.lower().startswith("bellary"):
+                        char_class, avatar, name = "char-bellary", "😎", "BELLARY RAJA"
+                        msg = line.split(":", 1)[1]
+                    elif line.lower().startswith("appukuttan"):
+                        char_class, avatar, name = "char-appukuttan", "🥋", "APPUKUTTAN"
+                        msg = line.split(":", 1)[1]
+                    elif line.lower().startswith("ponjikkara"):
+                        char_class, avatar, name = "char-ponjikkara", "🤪", "PONJIKKARA"
+                        msg = line.split(":", 1)[1]
+                    
+                    st.markdown(f"""
+                    <div class="chat-row {char_class}">
+                        <div class="chat-avatar">{avatar}</div>
+                        <div class="chat-bubble">
+                            <div class="chat-name">{name}</div>
+                            {msg}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            
+            st.write("---")
+            # (Rest of Tab 3 - Metrics & Leaderboard - Unchanged)
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
             lb = calculate_leaderboard(df_m, official_names)
             
-            # --- LEADERBOARD CARDS ---
             if not lb.empty:
-                max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
-                top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
-                max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
-                sp1, sp2, sp3 = st.columns(3)
-                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
-                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
-                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
-                
-                st.write("---")
-                
                 for p, r in lb.iterrows(): 
-                    st.markdown(f"""
-                    <div class='lb-card'>
-                        <div class='lb-rank'>#{r['Rank']}</div>
-                        <div class='lb-info'>
-                            <div class='lb-name'>{p}</div>
-                            <div class='lb-stats'>{r['M']} Matches • {r['W']} Wins</div>
-                        </div>
-                        <div class='lb-form'>{r['Form_Icons']}</div>
-                        <div class='lb-winrate'>{r['Win %']}%</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class='lb-card'><div class='lb-rank'>#{r['Rank']}</div><div class='lb-info'><div class='lb-name'>{p}</div><div class='lb-stats'>{r['M']} Matches • {r['W']} Wins</div></div><div class='lb-form'>{r['Form_Icons']}</div><div class='lb-winrate'>{r['Win %']}%</div></div>""", unsafe_allow_html=True)
             
-            # --- MATCH HISTORY VISUALS ---
             st.write("---")
             st.markdown("<h4 class='neon-white'>RECENT MATCHES</h4>", unsafe_allow_html=True)
             history = df_m.sort_values('Date', ascending=False).head(10)
-            
             for _, row in history.iterrows():
-                score_b = int(row['Score_Blue'])
-                score_r = int(row['Score_Red'])
-                
-                b_cls, r_cls = "mc-score-draw", "mc-score-draw"
-                border_color = "#555"
-                
-                win_text, lose_text = "", ""
-                win_team_cls, lose_team_cls = "", ""
+                score_b, score_r = int(row['Score_Blue']), int(row['Score_Red'])
+                b_cls, r_cls, border = "mc-score-draw", "mc-score-draw", "#555"
+                win_txt, lose_txt, win_cls, lose_cls = row['Team_Blue'], row['Team_Red'], "draw-text", "draw-text"
                 
                 if row['Winner'] == "Blue":
-                    b_cls, r_cls = "mc-score-blue", "mc-score-red"
-                    border_color = "#1c83e1"
-                    win_text = row['Team_Blue']; lose_text = row['Team_Red']
-                    win_team_cls = "neon-gold"; lose_team_cls = "dull-grey"
+                    b_cls, border = "mc-score-blue", "#1c83e1"
+                    win_txt, lose_txt, win_cls, lose_cls = row['Team_Blue'], row['Team_Red'], "neon-gold", "dull-grey"
                 elif row['Winner'] == "Red":
-                    b_cls, r_cls = "mc-score-blue", "mc-score-red"
-                    border_color = "#ff4b4b"
-                    win_text = row['Team_Red']; lose_text = row['Team_Blue']
-                    win_team_cls = "neon-gold"; lose_team_cls = "dull-grey"
-                else:
-                    win_text = row['Team_Blue']; lose_text = row['Team_Red']
-                    win_team_cls = "draw-text"; lose_team_cls = "draw-text"
+                    r_cls, border = "mc-score-red", "#ff4b4b"
+                    win_txt, lose_txt, win_cls, lose_cls = row['Team_Red'], row['Team_Blue'], "neon-gold", "dull-grey"
 
-                st.markdown(f"""
-                <div class='match-card' style='border-left: 4px solid {border_color};'>
-                    <div class='mc-left'>
-                        <div class='mc-date'>{row['Date']} | {row['Venue']}</div>
-                        <div class='mc-score'>
-                            <span class='{b_cls}'>BLUE {score_b}</span> 
-                            <span style='color:#888; margin:0 5px;'>-</span>
-                            <span class='{r_cls}'>{score_r} RED</span>
-                        </div>
-                    </div>
-                    <div class='mc-right'>
-                        <div class='{win_team_cls}'>{win_text}</div>
-                        <div class='{lose_team_cls}'>{lose_text}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # --- TAB 3 LOG MATCH UPDATE ---
+                st.markdown(f"""<div class='match-card' style='border-left: 4px solid {border};'><div class='mc-left'><div class='mc-date'>{row['Date']} | {row['Venue']}</div><div class='mc-score'><span class='{b_cls}'>BLUE {score_b}</span> - <span class='{r_cls}'>{score_r} RED</span></div></div><div class='mc-right'><div class='{win_cls}'>{win_txt}</div><div class='{lose_cls}'>{lose_txt}</div></div></div>""", unsafe_allow_html=True)
+
             with st.expander("⚙️ LOG MATCH"):
-                wa_txt = st.text_area("Paste the final full result with scoreline and team split")
-                if st.button("Parse"):
-                    parsed = parse_match_log(wa_txt)
-                    st.session_state.parsed_match_data = parsed
-                    st.toast("Match Parsed!")
-                
+                wa_txt = st.text_area("Paste Result")
+                if st.button("Parse"): st.session_state.parsed_match_data = parse_match_log(wa_txt); st.rerun()
                 if st.session_state.parsed_match_data:
                     pm = st.session_state.parsed_match_data
-                    st.markdown("<div class='neon-white' style='margin-bottom:15px;'>MATCH DETAILS (Auto-Filled)</div>", unsafe_allow_html=True)
                     c_d, c_t, c_v = st.columns(3)
-                    new_date = c_d.text_input("Date (YYYY-MM-DD)", pm['Date'])
+                    new_date = c_d.text_input("Date", pm['Date'])
                     new_time = c_t.text_input("Time", pm['Time'])
                     new_venue = c_v.text_input("Venue", pm['Venue'])
                     c_s1, c_s2 = st.columns(2)
-                    with c_s1:
-                        st.markdown("<div class='neon-blue'>BLUE SCORE</div>", unsafe_allow_html=True)
-                        new_score_b = st.number_input("Blue Score", value=pm['Score_Blue'], label_visibility="collapsed")
-                    with c_s2:
-                        st.markdown("<div class='neon-red'>RED SCORE</div>", unsafe_allow_html=True)
-                        new_score_r = st.number_input("Red Score", value=pm['Score_Red'], label_visibility="collapsed")
-                    
-                    st.markdown("<div class='neon-blue' style='margin-top:10px;'>BLUE TEAM LIST</div>", unsafe_allow_html=True)
-                    new_blue = st.text_area("Blue Team", pm['Team_Blue'], label_visibility="collapsed")
-                    st.markdown("<div class='neon-red' style='margin-top:10px;'>RED TEAM LIST</div>", unsafe_allow_html=True)
-                    new_red = st.text_area("Red Team", pm['Team_Red'], label_visibility="collapsed")
-                    
-                    save_pass = st.text_input("Admin Password", type="password")
-                    if st.button("💾 SAVE MATCH TO DB"):
-                        try:
-                            admin_pw = st.secrets["passwords"]["admin"]
-                        except:
-                            admin_pw = "1234"
-                        if save_pass == admin_pw:
-                            new_row = pd.DataFrame([{
-                                "Date": new_date, "Score_Blue": new_score_b, "Score_Red": new_score_r,
-                                "Winner": "Blue" if new_score_b > new_score_r else ("Red" if new_score_r > new_score_b else "Draw"),
-                                "Team_Blue": new_blue, "Team_Red": new_red,
-                                "Time": "", "Venue": new_venue, "Cost": "", "Gpay": "", "LateFee": ""
-                            }])
-                            try:
-                                updated_df = pd.concat([st.session_state.match_db, new_row], ignore_index=True)
-                                conn = st.session_state.conn
-                                conn.update(worksheet="Match_History", data=updated_df)
-                                st.session_state.match_db = updated_df
-                                st.success("Match Saved Successfully!")
-                            except Exception as e:
-                                st.error(f"Failed to save: {e}")
-                        else:
-                            st.error("Wrong Password")
-## testing with ponjikkara
-    with tab4:
-        try:
-            admin_pw = st.secrets["passwords"]["admin"]
-        except (FileNotFoundError, KeyError):
-            st.error("🚫 Security Config Missing. Please set up .streamlit/secrets.toml")
-            st.stop()
+                    ns_b = c_s1.number_input("Blue", pm['Score_Blue'])
+                    ns_r = c_s2.number_input("Red", pm['Score_Red'])
+                    nt_b = st.text_area("Blue Team", pm['Team_Blue'])
+                    nt_r = st.text_area("Red Team", pm['Team_Red'])
+                    if st.button("Save"):
+                        if st.text_input("Pass", type="password") == st.secrets["passwords"]["admin"]:
+                            new_row = pd.DataFrame([{"Date": new_date, "Score_Blue": ns_b, "Score_Red": ns_r, "Winner": "Blue" if ns_b > ns_r else "Red" if ns_r > ns_b else "Draw", "Team_Blue": nt_b, "Team_Red": nt_r}])
+                            st.session_state.match_db = pd.concat([st.session_state.match_db, new_row], ignore_index=True)
+                            st.session_state.conn.update(worksheet="Match_History", data=st.session_state.match_db)
+                            st.success("Saved!")
 
-        if st.text_input("Enter Admin Password", type="password", key="db_pass_input") == admin_pw: 
-            st.success("✅ Access Granted")
-            st.dataframe(st.session_state.master_db, use_container_width=True)
-        else:
-            st.info("🔒 Enter password to view raw database.")
+    with tab4:
+        if st.text_input("Admin Password", type="password") == st.secrets["passwords"]["admin"]: 
+            st.dataframe(st.session_state.master_db)
