@@ -9,11 +9,10 @@ def configure_genai():
     genai.configure(api_key=st.secrets["api"]["gemini"])
     return True
 
-# --- 1. CHATBOT (Updated Context) ---
+# --- 1. CHATBOT (Updated Persona) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     if not configure_genai(): return "Kaarthumbi: Ayyo! API Key missing!"
     
-    # ✅ UPDATED TO GEMINI 2.0 FLASH
     model = genai.GenerativeModel('gemini-2.0-flash')
     
     # Context
@@ -29,10 +28,11 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     prompt = f"""
     You are the Creative Director of a funny Malayalam movie character football panel.
     
-    **SPECIAL RULE:** - **ANCHAL** is the ONLY Female player in the group. 
-    - Always use **SHE/HER** for Anchal.
-    - **Vibe:** Treat her normally but with slight polite respect. 
-    - **Comedy:** Induchoodan might be aggressive to men but suddenly very polite to Anchal. Appukuttan might be confused and call her "Madam" or "Chechi" nervously. Don't overdo the praise, just keep it light and respectful.
+    **SPECIAL RULE FOR 'ANCHAL':**
+    - Anchal is the **ONLY Female player**.
+    - **Identity:** She is **Young (20s)** and **North Indian (Non-Malayali)**.
+    - **Vibe:** The Malayali characters treat her as a cool, skilled guest. They might try (and fail) to speak English or Hindi to include her.
+    - **FORBIDDEN:** Do NOT call her 'Aunty', 'Amma', 'Chechi', or 'Malayali'. 
     
     **Characters:** 1. **Kaarthumbi (Host):** Rustic, innocent.
     2. **Induchoodan (Fiery):** "Mone Dinesha!". 
@@ -52,11 +52,10 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     except Exception as e:
         return f"Kaarthumbi: Ayyo! The spirits are silent! ({str(e)})"
 
-# --- 2. MATCH SIMULATOR (Updated Context) ---
+# --- 2. MATCH SIMULATOR (Ratings Hidden + Persona Fixed) ---
 def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     if not configure_genai(): return "System: API Key missing!"
     
-    # ✅ UPDATED TO GEMINI 2.0 FLASH
     model = genai.GenerativeModel('gemini-2.0-flash')
 
     # Determine Winner Logic
@@ -68,23 +67,23 @@ def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
         winner = "BLUE"
         score = f"{random.randint(0,2)} - {random.randint(2,4)}"
 
+    # ✅ FIXED PROMPT: Removed Power Numbers from display string
     prompt = f"""
     You are a hilarious Malayalam Football Commentator (like Shaiju Damodaran on caffeine).
     
     **THE MATCH:**
-    🔴 **RED TEAM (Power {red_ovr}):** {", ".join(red_team_list)}
-    🔵 **BLUE TEAM (Power {blue_ovr}):** {", ".join(blue_team_list)}
-    
-    **SPECIAL INSTRUCTION FOR PLAYER 'ANCHAL':**
-    - Anchal is FEMALE (She/Her).
-    - If she tackles or scores, the commentator should be slightly surprised or appreciative in a respectful way. (e.g., "What a graceful move by Anchal!"). 
-    - Don't be offensive. Keep it family-friendly fun.
+    🔴 **RED TEAM:** {", ".join(red_team_list)}
+    🔵 **BLUE TEAM:** {", ".join(blue_team_list)}
     
     **THE RESULT:** {winner} wins! Score: {score}.
+
+    **STRICT RULES:**
+    1. **NO SECRET DATA:** NEVER mention "Power Ratings", "Points", or "Numbers" (like 81, 82). Just talk about their skill on the field.
+    2. **ANCHAL:** She is a young (20s) North Indian female player. Use She/Her. Do NOT use terms like 'Amma' or 'Aunty'. Describe her skill respectfully.
     
     **INSTRUCTIONS:**
     - Write a **funny 5-point commentary** of key moments.
-    - **Style:** High energy, movie references, exaggeration.
+    - **Style:** High energy, movie references (Lucifer, Spadikam, CBI), exaggeration.
     - **Format:**
       ⏰ **Min 10:** [Event]
       ⏰ **Min 35:** [Event]
