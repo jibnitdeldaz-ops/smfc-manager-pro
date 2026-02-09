@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import re
 import os
 import io
+import textwrap # <--- NEW IMPORT
 import streamlit.components.v1 as components
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
@@ -217,7 +218,7 @@ def run_football_app():
         if not st.session_state.match_squad.empty:
             c_pitch, c_subs = st.columns([3, 1])
             with c_pitch:
-                # 1. SETUP FIGURE
+                # 1. FIGURE
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
                 fig, ax = pitch.draw(figsize=(10, 12)) 
                 
@@ -231,7 +232,7 @@ def run_football_app():
                 ax.text(50, 108, "SMFC MATCH DAY", color='#FF5722', ha='center', fontsize=26, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
                 ax.text(50, 103, full_subtitle, color='black', ha='center', fontsize=16, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='white')])
                 
-                # 3. PLAYERS ON PITCH
+                # 3. PLAYERS
                 def draw_player(player_name, x, y, color):
                     pitch.scatter(x, y, s=600, marker='h', c=color, edgecolors='white', linewidth=2, ax=ax, zorder=2)
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
@@ -240,7 +241,6 @@ def run_football_app():
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 
-                # Recalculate for tab2 scope
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
                 r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
@@ -254,7 +254,7 @@ def run_football_app():
                     if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
                     else: subs_b.append(row.Name)
                 
-                # 4. DRAW SUBSTITUTES FOOTER
+                # 4. SUBS
                 if subs_r or subs_b:
                     ax.text(50, -2, "SUBSTITUTES", color='white', ha='center', fontsize=14, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
                     r_text = "\n".join(subs_r) if subs_r else "None"
@@ -264,13 +264,12 @@ def run_football_app():
 
                 st.pyplot(fig)
 
-                # 5. ACTION BUTTONS (DOWNLOAD & COPY SIDE-BY-SIDE)
+                # 5. BUTTONS
                 fn = f"SMFC_Lineup_{match_date}.png"
                 img_buf = io.BytesIO()
                 fig.savefig(img_buf, format='png', bbox_inches='tight', dpi=150, facecolor='#43a047')
                 img_buf.seek(0)
                 
-                # Prepare summary text for clipboard
                 dt_end = dt_obj + timedelta(minutes=duration)
                 str_time_range = f"{dt_obj.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
                 r_list_txt = "\n".join([p['Name'] for p in reds.to_dict('records')])
@@ -281,9 +280,7 @@ def run_football_app():
                 with c_dl:
                     st.download_button(label="📸 DOWNLOAD IMAGE", data=img_buf, file_name=fn, mime="image/png", use_container_width=True)
                 with c_copy:
-                    # Unique ID for Tab 2 copy button
                     unique_id = "txt_copy_tab2"
-                    # Inline style added to the button to match theme
                     components.html(f"""<textarea id="{unique_id}" style="position:absolute; left:-9999px;">{summary_tab2}</textarea><button onclick="var c=document.getElementById('{unique_id}');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:0; border:none; border-radius:8px; width:100%; height: 55px; cursor:pointer; font-size:16px;">📋 COPY TEAM LIST</button>""", height=55)
 
             with c_subs:
@@ -295,7 +292,7 @@ def run_football_app():
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
             
-            # SIDE-BY-SIDE LISTS
+            # LISTS
             red_html_t2 = ""; blue_html_t2 = ""
             for _, p in reds.iterrows(): red_html_t2 += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
             for _, p in blues.iterrows(): blue_html_t2 += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -325,6 +322,32 @@ def run_football_app():
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # --- 📸 GENERATE COMMENTARY IMAGE (NEW FEATURE) ---
+                comm_fig = plt.figure(figsize=(8, 10))
+                comm_fig.patch.set_facecolor('#0e1117')
+                ax_c = comm_fig.add_subplot(111)
+                ax_c.set_facecolor('#0e1117')
+                ax_c.axis('off')
+                
+                # Title
+                ax_c.text(0.5, 0.95, "🎙️ MATCH COMMENTARY", color='#FF5722', fontsize=22, ha='center', weight='bold', fontfamily='sans-serif')
+                ax_c.plot([0.1, 0.9], [0.92, 0.92], color='#FF5722', lw=2) # Underline
+                
+                # Body Text (Wrapped)
+                wrapped_text = "\n".join(textwrap.wrap(st.session_state.match_simulation, width=50))
+                ax_c.text(0.5, 0.88, wrapped_text, color='white', fontsize=12, ha='center', va='top', fontfamily='monospace')
+                
+                # Footer
+                ax_c.text(0.5, 0.02, "Generated by SMFC Manager Pro", color='#555', fontsize=8, ha='center')
+
+                # Download Button for Commentary
+                buf_c = io.BytesIO()
+                comm_fig.savefig(buf_c, format='png', bbox_inches='tight', dpi=150, facecolor='#0e1117')
+                buf_c.seek(0)
+                
+                st.write("")
+                st.download_button(label="📸 DOWNLOAD COMMENTARY CARD", data=buf_c, file_name=f"SMFC_Commentary_{match_date}.png", mime="image/png", use_container_width=True)
 
         else: st.info("Generate Squad First")
 

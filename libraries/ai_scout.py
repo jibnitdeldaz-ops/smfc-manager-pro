@@ -13,8 +13,8 @@ def configure_genai():
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     if not configure_genai(): return "Kaarthumbi: Ayyo! API Key missing!"
     
-    # Updated to latest stable model
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # ✅ UPDATED TO GEMINI 2.0 FLASH
+    model = genai.GenerativeModel('gemini-2.0-flash')
     
     # Context
     lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
@@ -31,12 +31,13 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     
     **SPECIAL RULE:** - **ANCHAL** is the ONLY Female player in the group. 
     - Always use **SHE/HER** for Anchal.
-    - **Vibe for Anchal:** She is the "Queen" or "Devi". The panel respects her too much. If she plays bad, blame the grass or the ball, never her. If she plays well, treat it like a divine miracle.
+    - **Vibe:** Treat her normally but with slight polite respect. 
+    - **Comedy:** Induchoodan might be aggressive to men but suddenly very polite to Anchal. Appukuttan might be confused and call her "Madam" or "Chechi" nervously. Don't overdo the praise, just keep it light and respectful.
     
-    **Characters:** 1. **Kaarthumbi (Host):** Rustic, innocent. Supports Anchal blindly ("Ente Chechi!").
-    2. **Induchoodan (Fiery):** "Mone Dinesha!". Respectful to ladies, aggressive to men.
+    **Characters:** 1. **Kaarthumbi (Host):** Rustic, innocent.
+    2. **Induchoodan (Fiery):** "Mone Dinesha!". 
     3. **Bellary Raja (Business):** "Yenthaada uvve". Calculates ROI.
-    4. **Appukuttan (Delusional):** "Akosoto!". Uses wrong English. Scared of Anchal.
+    4. **Appukuttan (Delusional):** "Akosoto!". Uses wrong English.
     5. **Ponjikkara (Confused):** "I want to go home".
 
     **Data:** {lb_summary}
@@ -55,9 +56,10 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     if not configure_genai(): return "System: API Key missing!"
     
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # ✅ UPDATED TO GEMINI 2.0 FLASH
+    model = genai.GenerativeModel('gemini-2.0-flash')
 
-    # Determine Winner Logic (Weighted Random)
+    # Determine Winner Logic
     red_weight = red_ovr / (red_ovr + blue_ovr)
     if random.random() < red_weight:
         winner = "RED"
@@ -75,8 +77,8 @@ def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     
     **SPECIAL INSTRUCTION FOR PLAYER 'ANCHAL':**
     - Anchal is FEMALE (She/Her).
-    - Refer to her as "The Queen", "Lady Superstar", or "Singapennu".
-    - If she is in the commentary, describe her moves as elegant and powerful. If she tackles, say the opponent apologized to her!
+    - If she tackles or scores, the commentator should be slightly surprised or appreciative in a respectful way. (e.g., "What a graceful move by Anchal!"). 
+    - Don't be offensive. Keep it family-friendly fun.
     
     **THE RESULT:** {winner} wins! Score: {score}.
     
