@@ -3,10 +3,11 @@ import pandas as pd
 from datetime import datetime, timedelta
 import re
 import os
-import io  # <--- NEW IMPORT FOR IMAGE SAVING
+import io
 import streamlit.components.v1 as components
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as path_effects # <--- NEW IMPORT FIXED HERE
 
 # --- IMPORTS ---
 try:
@@ -218,12 +219,12 @@ def run_football_app():
             with c_pitch:
                 # 1. SETUP FIGURE
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
-                fig, ax = pitch.draw(figsize=(10, 11)) # Taller height for header
+                fig, ax = pitch.draw(figsize=(10, 11)) 
                 
-                # 2. DRAW HEADER
+                # 2. DRAW HEADER (NOW WITH FIXED PATH_EFFECTS IMPORT)
                 str_date = datetime.combine(match_date, match_time).strftime('%d %b %Y, %I:%M %p')
-                ax.text(50, 107, "SMFC MATCH DAY", color='white', ha='center', fontsize=22, fontweight='900', fontfamily='sans-serif', path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=3, foreground='black')])
-                ax.text(50, 103, f"{str_date} | {venue}", color='#FFD700', ha='center', fontsize=12, fontweight='bold', path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=2, foreground='black')])
+                ax.text(50, 107, "SMFC MATCH DAY", color='white', ha='center', fontsize=22, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
+                ax.text(50, 103, f"{str_date} | {venue}", color='#FFD700', ha='center', fontsize=12, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
                 
                 # 3. DRAW PLAYERS
                 def draw_player(player_name, x, y, color):
@@ -249,7 +250,7 @@ def run_football_app():
                 
                 st.pyplot(fig)
 
-                # 4. DOWNLOAD BUTTON (SAVE FIG TO BUFFER)
+                # 4. DOWNLOAD BUTTON
                 fn = f"SMFC_Lineup_{match_date}.png"
                 img_buf = io.BytesIO()
                 fig.savefig(img_buf, format='png', bbox_inches='tight', dpi=150, facecolor='#43a047')
