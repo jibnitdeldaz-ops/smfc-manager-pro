@@ -9,11 +9,12 @@ def configure_genai():
     genai.configure(api_key=st.secrets["api"]["gemini"])
     return True
 
-# --- 1. CHATBOT (Existing) ---
+# --- 1. CHATBOT (Updated Context) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     if not configure_genai(): return "Kaarthumbi: Ayyo! API Key missing!"
     
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    # Updated to latest stable model
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     # Context
     lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
@@ -27,10 +28,21 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 
     prompt = f"""
     You are the Creative Director of a funny Malayalam movie character football panel.
-    **Characters:** Kaarthumbi (Host), Induchoodan (Fiery), Bellary Raja (Business), Appukuttan (Delusional), Ponjikkara (Confused).
+    
+    **SPECIAL RULE:** - **ANCHAL** is the ONLY Female player in the group. 
+    - Always use **SHE/HER** for Anchal.
+    - **Vibe for Anchal:** She is the "Queen" or "Devi". The panel respects her too much. If she plays bad, blame the grass or the ball, never her. If she plays well, treat it like a divine miracle.
+    
+    **Characters:** 1. **Kaarthumbi (Host):** Rustic, innocent. Supports Anchal blindly ("Ente Chechi!").
+    2. **Induchoodan (Fiery):** "Mone Dinesha!". Respectful to ladies, aggressive to men.
+    3. **Bellary Raja (Business):** "Yenthaada uvve". Calculates ROI.
+    4. **Appukuttan (Delusional):** "Akosoto!". Uses wrong English. Scared of Anchal.
+    5. **Ponjikkara (Confused):** "I want to go home".
+
     **Data:** {lb_summary}
     **User Question:** "{user_query}"
-    **Instructions:** Write a 10-line funny script. Kaarthumbi starts. Bellary speaks about Value/ROI. Induchoodan speaks about Guts. Ponjikkara is confused. 90% English.
+    
+    **Instructions:** Write a 10-line funny script. Kaarthumbi starts. 90% English.
     **Format:** Name: Message
     """
     try:
@@ -39,11 +51,11 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     except Exception as e:
         return f"Kaarthumbi: Ayyo! The spirits are silent! ({str(e)})"
 
-# --- 2. MATCH SIMULATOR (New Feature!) ---
+# --- 2. MATCH SIMULATOR (Updated Context) ---
 def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     if not configure_genai(): return "System: API Key missing!"
     
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
     # Determine Winner Logic (Weighted Random)
     red_weight = red_ovr / (red_ovr + blue_ovr)
@@ -61,11 +73,15 @@ def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     🔴 **RED TEAM (Power {red_ovr}):** {", ".join(red_team_list)}
     🔵 **BLUE TEAM (Power {blue_ovr}):** {", ".join(blue_team_list)}
     
+    **SPECIAL INSTRUCTION FOR PLAYER 'ANCHAL':**
+    - Anchal is FEMALE (She/Her).
+    - Refer to her as "The Queen", "Lady Superstar", or "Singapennu".
+    - If she is in the commentary, describe her moves as elegant and powerful. If she tackles, say the opponent apologized to her!
+    
     **THE RESULT:** {winner} wins! Score: {score}.
     
     **INSTRUCTIONS:**
     - Write a **funny 5-point commentary** of key moments.
-    - Mention specific players from the lists above doing funny or heroic things.
     - **Style:** High energy, movie references, exaggeration.
     - **Format:**
       ⏰ **Min 10:** [Event]
