@@ -7,7 +7,7 @@ import io
 import streamlit.components.v1 as components
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
-import matplotlib.patheffects as path_effects # <--- NEW IMPORT FIXED HERE
+import matplotlib.patheffects as path_effects
 
 # --- IMPORTS ---
 try:
@@ -217,16 +217,16 @@ def run_football_app():
         if not st.session_state.match_squad.empty:
             c_pitch, c_subs = st.columns([3, 1])
             with c_pitch:
-                # 1. SETUP FIGURE
+                # 1. SETUP FIGURE (INCREASED HEIGHT FOR SUBS FOOTER)
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
-                fig, ax = pitch.draw(figsize=(10, 11)) 
+                fig, ax = pitch.draw(figsize=(10, 12)) 
                 
-                # 2. DRAW HEADER (NOW WITH FIXED PATH_EFFECTS IMPORT)
+                # 2. HEADER
                 str_date = datetime.combine(match_date, match_time).strftime('%d %b %Y, %I:%M %p')
                 ax.text(50, 107, "SMFC MATCH DAY", color='white', ha='center', fontsize=22, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
                 ax.text(50, 103, f"{str_date} | {venue}", color='#FFD700', ha='center', fontsize=12, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
                 
-                # 3. DRAW PLAYERS
+                # 3. PLAYERS ON PITCH
                 def draw_player(player_name, x, y, color):
                     pitch.scatter(x, y, s=600, marker='h', c=color, edgecolors='white', linewidth=2, ax=ax, zorder=2)
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
@@ -248,9 +248,21 @@ def run_football_app():
                     if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
                     else: subs_b.append(row.Name)
                 
+                # 4. DRAW SUBSTITUTES FOOTER (NEW)
+                if subs_r or subs_b:
+                    ax.text(50, -2, "SUBSTITUTES", color='white', ha='center', fontsize=14, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
+                    
+                    # Red Subs (Left)
+                    r_text = "\n".join(subs_r) if subs_r else "None"
+                    ax.text(25, -5, f"RED SQUAD\n{r_text}", color='#ff4b4b', ha='center', va='top', fontsize=10, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=1, foreground='black')])
+                    
+                    # Blue Subs (Right)
+                    b_text = "\n".join(subs_b) if subs_b else "None"
+                    ax.text(75, -5, f"BLUE SQUAD\n{b_text}", color='#1c83e1', ha='center', va='top', fontsize=10, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=1, foreground='black')])
+
                 st.pyplot(fig)
 
-                # 4. DOWNLOAD BUTTON
+                # 5. DOWNLOAD BUTTON
                 fn = f"SMFC_Lineup_{match_date}.png"
                 img_buf = io.BytesIO()
                 fig.savefig(img_buf, format='png', bbox_inches='tight', dpi=150, facecolor='#43a047')
