@@ -221,13 +221,17 @@ def run_football_app():
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
                 fig, ax = pitch.draw(figsize=(10, 12)) 
                 
-                # 2. HEADER (UPDATED STYLING)
-                # ✅ Added day of week (%a)
-                str_date = datetime.combine(match_date, match_time).strftime('%d %b %Y (%a), %I:%M %p')
-                # ✅ Changed color to theme orange
-                ax.text(50, 107, "SMFC MATCH DAY", color='#FF5722', ha='center', fontsize=22, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
-                # ✅ Increased fontsize to 14
-                ax.text(50, 103, f"{str_date} | {venue}", color='#FFD700', ha='center', fontsize=14, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='black')])
+                # 2. HEADER (REFINED)
+                dt_obj = datetime.combine(match_date, match_time)
+                date_str = dt_obj.strftime('%d %b %Y')
+                day_venue_str = f"({dt_obj.strftime('%a')} at {venue})"
+                time_str = dt_obj.strftime('%I:%M %p')
+                full_subtitle = f"{date_str} {day_venue_str} | {time_str}"
+
+                # ✅ Main Header: Theme Orange, Bigger Size (26)
+                ax.text(50, 108, "SMFC MATCH DAY", color='#FF5722', ha='center', fontsize=26, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
+                # ✅ Subtitle: Black text, Bigger Size (16), White Outline for contrast
+                ax.text(50, 103, full_subtitle, color='black', ha='center', fontsize=16, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='white')])
                 
                 # 3. PLAYERS ON PITCH
                 def draw_player(player_name, x, y, color):
@@ -238,6 +242,7 @@ def run_football_app():
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 
+                # Recalculate for tab2 scope
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
                 r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
@@ -261,12 +266,27 @@ def run_football_app():
 
                 st.pyplot(fig)
 
-                # 5. DOWNLOAD BUTTON
+                # 5. ACTION BUTTONS (DOWNLOAD & COPY SIDE-BY-SIDE)
                 fn = f"SMFC_Lineup_{match_date}.png"
                 img_buf = io.BytesIO()
                 fig.savefig(img_buf, format='png', bbox_inches='tight', dpi=150, facecolor='#43a047')
                 img_buf.seek(0)
-                st.download_button(label="📸 DOWNLOAD MATCH CARD", data=img_buf, file_name=fn, mime="image/png", use_container_width=True)
+                
+                # Prepare summary text for clipboard
+                dt_end = dt_obj + timedelta(minutes=duration)
+                str_time_range = f"{dt_obj.strftime('%I:%M %p')} - {dt_end.strftime('%I:%M %p')}"
+                r_list_txt = "\n".join([p['Name'] for p in reds.to_dict('records')])
+                b_list_txt = "\n".join([p['Name'] for p in blues.to_dict('records')])
+                summary_tab2 = f"Date: {date_str} {day_venue_str}\nTime: {str_time_range}\nGround: {venue}\nScore: Blue 0-0 Red\nCost per player: *\nGpay: *\nLateFee: 50\n\n🔵 *BLUE TEAM* ({b_ovr})\n{b_list_txt}\n\n🔴 *RED TEAM* ({r_ovr})\n{r_list_txt}"
+
+                c_dl, c_copy = st.columns(2)
+                with c_dl:
+                    st.download_button(label="📸 DOWNLOAD IMAGE", data=img_buf, file_name=fn, mime="image/png", use_container_width=True)
+                with c_copy:
+                    # Unique ID for Tab 2 copy button to avoid conflict with Tab 1
+                    unique_id = "txt_copy_tab2"
+                    # Inline style added to the button to match theme
+                    components.html(f"""<textarea id="{unique_id}" style="position:absolute; left:-9999px;">{summary_tab2}</textarea><button onclick="var c=document.getElementById('{unique_id}');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:0; border:none; border-radius:5px; width:100%; height: 55px; cursor:pointer; font-size:16px;">📋 COPY TEXT</button>""", height=55)
 
             with c_subs:
                 st.markdown("<h4 style='color:#FF5722; text-align:center;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
