@@ -43,7 +43,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
 def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     if not configure_genai(): return "System: API Key missing!"
     
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
 
     # Determine Winner Logic (Weighted Random)
     red_weight = red_ovr / (red_ovr + blue_ovr)
