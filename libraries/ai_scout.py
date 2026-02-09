@@ -13,7 +13,7 @@ def configure_genai():
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     if not configure_genai(): return "Kaarthumbi: Ayyo! API Key missing!"
     
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-2.0-flash')
     
     # Context
     lb_summary = leaderboard_df.to_string(index=True) if not leaderboard_df.empty else "No Stats Available"
