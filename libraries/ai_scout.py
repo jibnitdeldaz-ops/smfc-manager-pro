@@ -9,7 +9,7 @@ def configure_genai():
     genai.configure(api_key=st.secrets["api"]["gemini"])
     return True
 
-# --- 1. CHATBOT (Updated "Stealth" Persona) ---
+# --- 1. CHATBOT (80% English Rule Added) ---
 def ask_ai_scout(user_query, leaderboard_df, history_df):
     if not configure_genai(): return "Kaarthumbi: Ayyo! API Key missing!"
     
@@ -28,6 +28,9 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     prompt = f"""
     You are the Creative Director of a funny Malayalam movie character football panel.
     
+    **LANGUAGE RULE:** - **80% English:** The main content must be English so everyone understands.
+    - **20% Malayalam:** Use Malayalam only for punchlines, catchphrases, or emotional outbursts.
+    
     **INTERNAL CONTEXT FOR 'ANCHAL' (DO NOT REVEAL THESE FACTS):**
     - She is the only female player, young (20s), and non-Malayali.
     - **RULE:** NEVER mention her age, region ("North Indian"), or gender explicitly.
@@ -44,7 +47,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     **Data:** {lb_summary}
     **User Question:** "{user_query}"
     
-    **Instructions:** Write a 10-line funny script. Kaarthumbi starts. 90% English.
+    **Instructions:** Write a 10-line funny script. Kaarthumbi starts.
     **Format:** Name: Message
     """
     try:
@@ -53,7 +56,7 @@ def ask_ai_scout(user_query, leaderboard_df, history_df):
     except Exception as e:
         return f"Kaarthumbi: Ayyo! The spirits are silent! ({str(e)})"
 
-# --- 2. MATCH SIMULATOR (Ratings Hidden + Implicit Context) ---
+# --- 2. MATCH SIMULATOR (80% English Rule Added) ---
 def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     if not configure_genai(): return "System: API Key missing!"
     
@@ -68,10 +71,6 @@ def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
         winner = "BLUE"
         score = f"{random.randint(0,2)} - {random.randint(2,4)}"
 
-    # ✅ FIXED PROMPT: 
-    # 1. Removed variables {red_ovr} from string so AI doesn't know them.
-    # 2. Changed Anchal instructions to "Style Guide" instead of "Facts".
-    
     prompt = f"""
     You are a hilarious Malayalam Football Commentator (like Shaiju Damodaran on caffeine).
     
@@ -82,8 +81,9 @@ def simulate_match_commentary(red_team_list, blue_team_list, red_ovr, blue_ovr):
     **THE RESULT:** {winner} wins! Score: {score}.
 
     **STRICT RULES:**
-    1. **NO NUMBERS:** You do NOT know the Power Ratings. Do NOT mention numbers like 81, 82, etc. Focus on the game.
-    2. **ANCHAL (Internal Context):** She is a skilled female player. 
+    1. **LANGUAGE BALANCE:** **80% English** (Action description), **20% Malayalam** (Emotional outbursts/Exclamations). The commentary MUST be understandable to a non-Malayali audience.
+    2. **NO NUMBERS:** You do NOT know the Power Ratings. Do NOT mention numbers like 81, 82, etc. Focus on the game.
+    3. **ANCHAL (Internal Context):** She is a skilled female player. 
        - **Instruction:** Treat her moves as elegant and sharp.
        - **Constraint:** Do NOT mention "North Indian", "20 years old", "Lady", or "Girl". Do NOT use "Amma/Aunty". Just use her name and describing her great skills.
     
