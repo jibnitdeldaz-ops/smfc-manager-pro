@@ -205,7 +205,6 @@ def run_football_app():
             with col_tr_red: s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
             with col_tr_blue: s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
-                st.write(""); st.write("")
                 if st.button("↔️", key="swap_btn"):
                     s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]

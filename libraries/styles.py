@@ -1,4 +1,4 @@
-# libraries/styles.py
+# libraries/styles.py (v13.2 FIX)
 import streamlit as st
 
 def apply_custom_css():
@@ -14,9 +14,7 @@ def apply_custom_css():
             color: #e0e0e0; 
         }
         
-        /* --- 🌟 NEON TEXT RESTORATION (THE FIX) --- */
-        
-        /* 1. Global Widget Labels (Checkboxes, Inputs, Selectboxes) */
+        /* --- NEON TEXT & WIDGETS --- */
         .stCheckbox p, div[data-testid="stWidgetLabel"] p, label p {
             color: #ffffff !important;
             text-shadow: 0 0 8px rgba(255,255,255,0.9) !important;
@@ -25,8 +23,6 @@ def apply_custom_css():
             font-size: 15px !important;
             letter-spacing: 1px !important;
         }
-
-        /* 2. Input Fields Text Color */
         input[type="text"], input[type="number"], textarea, div[data-baseweb="input"], div[data-baseweb="base-input"] { 
             background-color: #ffffff !important; 
             color: #000000 !important; 
@@ -37,8 +33,6 @@ def apply_custom_css():
             background-color: #ffffff !important; 
             color: #000000 !important; 
         }
-
-        /* 3. Metrics (Big Numbers) */
         [data-testid="stMetricLabel"] { 
             color: #ffffff !important; 
             font-weight: bold !important; 
@@ -51,15 +45,20 @@ def apply_custom_css():
             font-family: 'Orbitron', sans-serif;
         }
 
-        /* --- END NEON FIX --- */
-
+        /* --- RESTORED CLASSES --- */
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
-        .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
-        .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
-        
         .neon-gold { color: #FFEB3B !important; font-weight: 900 !important; font-size: 14px !important; text-shadow: 1px 1px 0 #000; letter-spacing: 0.5px; }
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
         .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
+
+        /* ✅ RESTORED: Neon Green Log Text */
+        .change-log-item {
+            color: #76FF03;
+            font-family: 'Courier Prime', monospace;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(118, 255, 3, 0.7);
+            margin-bottom: 5px;
+        }
 
         .badge-box { display: flex; gap: 5px; }
         .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
@@ -68,18 +67,13 @@ def apply_custom_css():
         /* CHAT STYLES */
         .chat-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 10px; }
         .chat-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; margin-bottom: 15px; }
-        
-        /* HOST (LEFT) */
         .chat-row.char-kaarthumbi { justify-content: flex-start; }
         .char-kaarthumbi .chat-avatar { background: #43a047; order: 1; margin-right: 10px; }
         .char-kaarthumbi .chat-bubble { background: linear-gradient(135deg, #2E7D32, #1B5E20); order: 2; border-top-left-radius: 0; }
-
-        /* GUESTS (RIGHT) */
         .chat-row.guest-style { justify-content: flex-end; }
         .chat-row.guest-style .chat-avatar { order: 2; margin-left: 10px; }
         .chat-row.guest-style .chat-bubble { order: 1; border-top-right-radius: 0; text-align: right; }
         .chat-row.guest-style .chat-name { text-align: right; }
-
         .chat-avatar { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; border: 2px solid rgba(255,255,255,0.2); flex-shrink: 0; }
         .chat-bubble { padding: 12px 16px; border-radius: 12px; font-family: 'Rajdhani', sans-serif; font-size: 16px; line-height: 1.4; max-width: 80%; box-shadow: 0 2px 5px rgba(0,0,0,0.2); color: #fff; }
         .chat-name { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 2px; opacity: 0.8; letter-spacing: 1px; }
@@ -94,6 +88,7 @@ def apply_custom_css():
         .char-ponjikkara .chat-avatar { background: #607D8B; }
         .char-ponjikkara .chat-bubble { background: linear-gradient(135deg, #546E7A, #455A64); font-style: italic; }
         
+        /* ANALYTICS & PLAYER CARDS */
         .lb-card { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid #FF5722; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         .lb-rank { font-size: 24px; font-weight: 900; color: #FF5722; width: 40px; }
         .lb-info { flex-grow: 1; padding-left: 10px; }
@@ -107,6 +102,13 @@ def apply_custom_css():
         .sp-title { font-size: 14px; font-weight: 900; color: #ffffff; text-transform: uppercase; margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 18px; font-weight: 900; text-transform: uppercase; }
         
+        /* ✅ RESTORED: Player Card Team Colors */
+        .player-card { background: linear-gradient(90deg, #1a1f26, #121212); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+        .kit-red { border-left: 4px solid #ff4b4b; }
+        .kit-blue { border-left: 4px solid #1c83e1; }
+        .card-name { font-size: 14px; font-weight: 700; color: white !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+        .pos-badge { font-size: 10px; font-weight: 900; background: rgba(255,255,255,0.1); padding: 2px 5px; border-radius: 4px; color: #ccc; text-transform: uppercase; }
+
         .match-card { background: rgba(18, 18, 18, 0.9); border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; min-width: 140px; }
         .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; justify-content: center; gap: 8px; }
@@ -118,7 +120,7 @@ def apply_custom_css():
 
         /* MOBILE OPTIMIZATION */
         @media (max-width: 600px) {
-            .stApp { background-image: none; background-color: #0e1117; } /* Solid dark bg for mobile performance */
+            .stApp { background-image: none; background-color: #0e1117; }
             .lb-card { flex-direction: column; align-items: flex-start; }
             .lb-rank { margin-bottom: 5px; }
             .lb-info { padding-left: 0; margin-bottom: 10px; }
