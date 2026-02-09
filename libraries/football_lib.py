@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
 
-# --- IMPORTS FROM MODULES ---
+# --- IMPORTS ---
 try:
     from libraries.styles import apply_custom_css
     from libraries.backend import (
@@ -15,20 +15,19 @@ try:
         clean_player_name, toggle_selection, calculate_player_score, 
         calculate_leaderboard, parse_match_log, formation_presets
     )
-    from libraries.ai_scout import ask_ai_scout
+    # ✅ NEW IMPORT added here
+    from libraries.ai_scout import ask_ai_scout, simulate_match_commentary
 except ImportError:
-    # Fallback for direct execution
     from styles import apply_custom_css
     from backend import (
         load_data, get_counts, get_guests_list, extract_whatsapp_players, 
         clean_player_name, toggle_selection, calculate_player_score, 
         calculate_leaderboard, parse_match_log, formation_presets
     )
-    from ai_scout import ask_ai_scout
+    from ai_scout import ask_ai_scout, simulate_match_commentary
 
 # --- MAIN APP ---
 def run_football_app():
-    # Session State Init
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
@@ -37,25 +36,23 @@ def run_football_app():
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
+    # ✅ New Session State for Simulation
+    if 'match_simulation' not in st.session_state: st.session_state.match_simulation = ""
 
-    # Apply CSS
     apply_custom_css()
 
-    # Load Data
     if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
         conn, df_p, df_m = load_data()
         st.session_state.conn = conn; st.session_state.master_db = df_p; st.session_state.match_db = df_m
     else:
         if 'conn' not in st.session_state: conn, df_p, df_m = load_data(); st.session_state.conn = conn
 
-    # Title & Refresh
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
         st.session_state.ui_version += 1
         st.rerun()
 
-    # Tabs
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
     # --- TAB 1: LOBBY ---
@@ -85,7 +82,6 @@ def run_football_app():
                     st.session_state.ui_version += 1
                     st.toast(f"✅ Found players. {len(new_guests)} guests added!"); st.rerun()
 
-        # Checklists
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
         def render_checklist(df_s, t_n):
             if df_s.empty or 'Name' not in df_s.columns: return
@@ -133,24 +129,15 @@ def run_football_app():
                     if st.button("UPDATE POS", key="btn_update_pos"):
                         p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
-                        
-                        # Capture old for log
                         old_pos = st.session_state.master_db.at[idx, 'Position']
-                        
-                        # Update
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
                         st.session_state.master_db.at[idx, 'Selected'] = True 
                         st.session_state.ui_version += 1
-                        
-                        # Log
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
-                
-                # Show Log
                 if st.session_state.position_changes:
-                    st.write("")
-                    for change in st.session_state.position_changes:
-                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
+                    st.write(""); 
+                    for change in st.session_state.position_changes: st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
 
         st.write(""); 
@@ -165,16 +152,15 @@ def run_football_app():
                     rating_val = star_map.get(chosen_stars, 3)
                     guest_rows.append({"Name": g, "Position": chosen_pos, "StarRating": rating_val, "PAC":70,"SHO":70,"PAS":70,"DRI":70,"DEF":70,"PHY":70})
                 if guest_rows: active = pd.concat([active, pd.DataFrame(guest_rows)], ignore_index=True)
-                
                 if not active.empty:
                     active['Power'] = active.apply(calculate_player_score, axis=1)
                     active = active.sort_values(['Position', 'Power'], ascending=[True, False])
-                    # Simplified draft
                     df_red = active.iloc[::2].copy(); df_red['Team'] = 'Red'
                     df_blue = active.iloc[1::2].copy(); df_blue['Team'] = 'Blue'
                     st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
                     st.session_state.red_ovr = int(df_red['Power'].mean()) if not df_red.empty else 0
                     st.session_state.blue_ovr = int(df_blue['Power'].mean()) if not df_blue.empty else 0
+                    st.session_state.match_simulation = "" # Reset simulation on new squad
                     st.rerun()
             else: st.error("Database offline.")
 
@@ -184,6 +170,8 @@ def run_football_app():
             reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
             blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
             r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
+            
+            # --- DISPLAY LINEUPS ---
             red_html = ""; blue_html = ""
             for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
             for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue'><span class='card-name'>{p['Name']}</span><span class='pos-badge'>{p['Position']}</span></div>"
@@ -210,16 +198,14 @@ def run_football_app():
             with col_tr_red: s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
             with col_tr_blue: s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
-                # Aligned button (removed spacers)
                 if st.button("↔️", key="swap_btn"):
                     s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
                     idx_b = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_blue].index[0]
                     st.session_state.match_squad.at[idx_r, "Team"] = "Blue"; st.session_state.match_squad.at[idx_b, "Team"] = "Red"
                     st.session_state.transfer_log.append(f"{s_red} (RED) ↔ {s_blue} (BLUE)")
-                    r_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]
-                    b_p = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]
-                    st.session_state.red_ovr = int(r_p['Power'].mean()); st.session_state.blue_ovr = int(b_p['Power'].mean())
+                    st.session_state.red_ovr = int(st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"]['Power'].mean())
+                    st.session_state.blue_ovr = int(st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"]['Power'].mean())
                     st.rerun()
             if st.session_state.transfer_log:
                 st.write(""); 
@@ -229,6 +215,7 @@ def run_football_app():
     # --- TAB 2: PITCH ---
     with tab2:
         if not st.session_state.match_squad.empty:
+            # 1. PITCH VISUALIZATION
             c_pitch, c_subs = st.columns([3, 1])
             with c_pitch:
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
@@ -238,9 +225,12 @@ def run_football_app():
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
+                r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
+                
+                # Draw players (re-calculate reds/blues here for scope)
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
-                r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
+                
                 subs_r = []
                 for i, row in enumerate(reds.itertuples()):
                     if i < len(r_spots): draw_player(row.Name, r_spots[i][0], r_spots[i][1], '#ff4b4b')
@@ -250,25 +240,33 @@ def run_football_app():
                     if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
                     else: subs_b.append(row.Name)
                 st.pyplot(fig)
+                
             with c_subs:
-                st.markdown("<h4 style='color:#FF5722; text-align:center; border-bottom:2px solid #FF5722;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
+                st.markdown("<h4 style='color:#FF5722; text-align:center;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
                 if subs_r:
                     st.markdown("<div style='color:#ff4b4b; font-weight:bold;'>🔴 RED SUBS</div>", unsafe_allow_html=True)
                     for s in subs_r: st.markdown(f"- {s}")
                 if subs_b:
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
-                if not subs_r and not subs_b: st.info("No Subs")
-                
-                # Side-by-Side on Tact Board too
-                red_html = ""; blue_html = ""
-                for _, p in reds.iterrows(): red_html += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
-                for _, p in blues.iterrows(): blue_html += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
-                st.write("---")
+            
+            # 2. MATCH SIMULATION BUTTON (New Feature)
+            st.write("---")
+            if st.button("🔮 SIMULATE MATCH SCENARIO"):
+                with st.spinner("AI is analyzing player stats and generating simulation..."):
+                    r_names = [p['Name'] for p in reds.to_dict('records')]
+                    b_names = [p['Name'] for p in blues.to_dict('records')]
+                    r_ovr = st.session_state.get('red_ovr', 70)
+                    b_ovr = st.session_state.get('blue_ovr', 70)
+                    st.session_state.match_simulation = simulate_match_commentary(r_names, b_names, r_ovr, b_ovr)
+            
+            if st.session_state.match_simulation:
                 st.markdown(f"""
-                <div style="display: flex; gap: 5px; margin-top: 10px;">
-                    <div style="flex: 1; min-width: 0;"><h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED ({r_ovr})</h6>{red_html}</div>
-                    <div style="flex: 1; min-width: 0;"><h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE ({b_ovr})</h6>{blue_html}</div>
+                <div style="background:rgba(0,0,0,0.5); padding:20px; border-radius:10px; border-left: 5px solid #FFD700; margin-top:20px;">
+                    <h3 style="color:#FFD700; margin-top:0;">🎙️ MATCH COMMENTARY</h3>
+                    <div style="white-space: pre-line; line-height: 1.6; font-family: monospace; font-size: 14px;">
+                        {st.session_state.match_simulation}
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -281,7 +279,7 @@ def run_football_app():
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
-            # --- 🤖 KAARTHUMBI COMEDY CHAT (WHATSAPP STYLE) ---
+            # --- CHAT UI ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
             col_avatar, col_title = st.columns([1, 5])
             with col_avatar:
@@ -297,58 +295,33 @@ def run_football_app():
                     ans = ask_ai_scout(user_q, lb, df_m)
                     st.session_state.ai_chat_response = ans
             
-            # PARSE AND RENDER BUBBLES
             if st.session_state.ai_chat_response:
                 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
                 lines = st.session_state.ai_chat_response.split('\n')
                 for line in lines:
                     line = line.strip()
                     if not line: continue
+                    parts = line.split(':', 1)
+                    if len(parts) < 2: continue
                     
-                    # 🔍 PARSING LOGIC: Handles bolding/casing variations
-                    line_lower = line.lower().replace('*', '').replace(':', '') 
+                    raw_name = parts[0].lower().replace('*', '').strip()
+                    msg = parts[1].strip()
+                    char_class = "guest-style"
+                    avatar = "👤"
+                    name = parts[0].replace('*', '').strip().upper()
                     
-                    char_class = "char-host"
-                    avatar = "🐘"
-                    name = "Kaarthumbi"
-                    msg = line
+                    if "kaarthumbi" in raw_name: char_class = "char-kaarthumbi"; avatar = "🐘"
+                    elif "bellary" in raw_name: char_class = "char-bellary guest-style"; avatar = "😎"
+                    elif "induchoodan" in raw_name: char_class = "char-induchoodan guest-style"; avatar = "🔥"
+                    elif "appukuttan" in raw_name: char_class = "char-appukuttan guest-style"; avatar = "🥋"
+                    elif "ponjikkara" in raw_name: char_class = "char-ponjikkara guest-style"; avatar = "🤪"
                     
-                    # Clean message by removing the name prefix
-                    if "kaarthumbi" in line_lower:
-                        char_class, avatar, name = "char-kaarthumbi", "🐘", "KAARTHUMBI"
-                        msg = re.split(r'kaarthumbi\s*[:*]+', line, flags=re.IGNORECASE)[-1]
-                    elif "bellary" in line_lower:
-                        char_class, avatar, name = "char-bellary", "😎", "BELLARY RAJA"
-                        char_class += " guest-style"
-                        msg = re.split(r'bellary\s*(?:raja)?\s*[:*]+', line, flags=re.IGNORECASE)[-1]
-                    elif "induchoodan" in line_lower:
-                        char_class, avatar, name = "char-induchoodan", "🔥", "INDUCHOODAN"
-                        char_class += " guest-style"
-                        msg = re.split(r'induchoodan\s*[:*]+', line, flags=re.IGNORECASE)[-1]
-                    elif "appukuttan" in line_lower:
-                        char_class, avatar, name = "char-appukuttan", "🥋", "APPUKUTTAN"
-                        char_class += " guest-style"
-                        msg = re.split(r'appukuttan\s*[:*]+', line, flags=re.IGNORECASE)[-1]
-                    elif "ponjikkara" in line_lower:
-                        char_class, avatar, name = "char-ponjikkara", "🤪", "PONJIKKARA"
-                        char_class += " guest-style"
-                        msg = re.split(r'ponjikkara\s*[:*]+', line, flags=re.IGNORECASE)[-1]
-                    
-                    if msg.strip():
-                        st.markdown(f"""
-                        <div class="chat-row {char_class}">
-                            <div class="chat-avatar">{avatar}</div>
-                            <div class="chat-bubble">
-                                <div class="chat-name">{name}</div>
-                                {msg.strip()}
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                    st.markdown(f"""<div class="chat-row {char_class}"><div class="chat-avatar">{avatar}</div><div class="chat-bubble"><div class="chat-name">{name}</div>{msg}</div></div>""", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
             
             st.write("---")
-            # (Rest of Tab 3 - Metrics & Leaderboard)
+            # METRICS
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
             lb = calculate_leaderboard(df_m, official_names)
@@ -358,9 +331,9 @@ def run_football_app():
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
                 sp1, sp2, sp3 = st.columns(3)
-                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
-                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
-                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
+                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
+                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
+                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
                 
                 st.write("---")
                 for p, r in lb.iterrows(): 
@@ -373,14 +346,8 @@ def run_football_app():
                 score_b, score_r = int(row['Score_Blue']), int(row['Score_Red'])
                 b_cls, r_cls, border = "mc-score-draw", "mc-score-draw", "#555"
                 win_txt, lose_txt, win_cls, lose_cls = row['Team_Blue'], row['Team_Red'], "draw-text", "draw-text"
-                
-                if row['Winner'] == "Blue":
-                    b_cls, border = "mc-score-blue", "#1c83e1"
-                    win_txt, lose_txt, win_cls, lose_cls = row['Team_Blue'], row['Team_Red'], "neon-gold", "dull-grey"
-                elif row['Winner'] == "Red":
-                    r_cls, border = "mc-score-red", "#ff4b4b"
-                    win_txt, lose_txt, win_cls, lose_cls = row['Team_Red'], row['Team_Blue'], "neon-gold", "dull-grey"
-
+                if row['Winner'] == "Blue": b_cls, border, win_txt, lose_txt, win_cls, lose_cls = "mc-score-blue", "#1c83e1", row['Team_Blue'], row['Team_Red'], "neon-gold", "dull-grey"
+                elif row['Winner'] == "Red": r_cls, border, win_txt, lose_txt, win_cls, lose_cls = "mc-score-red", "#ff4b4b", row['Team_Red'], row['Team_Blue'], "neon-gold", "dull-grey"
                 st.markdown(f"""<div class='match-card' style='border-left: 4px solid {border};'><div class='mc-left'><div class='mc-date'>{row['Date']} | {row['Venue']}</div><div class='mc-score'><span class='{b_cls}'>BLUE {score_b}</span> - <span class='{r_cls}'>{score_r} RED</span></div></div><div class='mc-right'><div class='{win_cls}'>{win_txt}</div><div class='{lose_cls}'>{lose_txt}</div></div></div>""", unsafe_allow_html=True)
 
             with st.expander("⚙️ LOG MATCH"):
