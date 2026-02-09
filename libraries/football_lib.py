@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import re
 import os
+import io  # <--- NEW IMPORT FOR IMAGE SAVING
 import streamlit.components.v1 as components
 from mplsoccer import Pitch
 import matplotlib.pyplot as plt
@@ -213,19 +214,26 @@ def run_football_app():
     # --- TAB 2: PITCH ---
     with tab2:
         if not st.session_state.match_squad.empty:
-            # 1. PITCH
             c_pitch, c_subs = st.columns([3, 1])
             with c_pitch:
+                # 1. SETUP FIGURE
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
-                fig, ax = pitch.draw(figsize=(10, 8))
+                fig, ax = pitch.draw(figsize=(10, 11)) # Taller height for header
+                
+                # 2. DRAW HEADER
+                str_date = datetime.combine(match_date, match_time).strftime('%d %b %Y, %I:%M %p')
+                ax.text(50, 107, "SMFC MATCH DAY", color='white', ha='center', fontsize=22, fontweight='900', fontfamily='sans-serif', path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=3, foreground='black')])
+                ax.text(50, 103, f"{str_date} | {venue}", color='#FFD700', ha='center', fontsize=12, fontweight='bold', path_effects=[plt.matplotlib.patheffects.withStroke(linewidth=2, foreground='black')])
+                
+                # 3. DRAW PLAYERS
                 def draw_player(player_name, x, y, color):
                     pitch.scatter(x, y, s=600, marker='h', c=color, edgecolors='white', linewidth=2, ax=ax, zorder=2)
                     ax.text(x, y-4, player_name, color='black', ha='center', fontsize=10, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="black", lw=1), zorder=3)
+                
                 fmt = st.session_state.get('match_format', '9 vs 9')
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 
-                # Recalculate for tab2 scope
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
                 r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
@@ -238,8 +246,16 @@ def run_football_app():
                 for i, row in enumerate(blues.itertuples()):
                     if i < len(b_spots): draw_player(row.Name, b_spots[i][0], b_spots[i][1], '#1c83e1')
                     else: subs_b.append(row.Name)
-                st.pyplot(fig)
                 
+                st.pyplot(fig)
+
+                # 4. DOWNLOAD BUTTON (SAVE FIG TO BUFFER)
+                fn = f"SMFC_Lineup_{match_date}.png"
+                img_buf = io.BytesIO()
+                fig.savefig(img_buf, format='png', bbox_inches='tight', dpi=150, facecolor='#43a047')
+                img_buf.seek(0)
+                st.download_button(label="📸 DOWNLOAD MATCH CARD", data=img_buf, file_name=fn, mime="image/png", use_container_width=True)
+
             with c_subs:
                 st.markdown("<h4 style='color:#FF5722; text-align:center;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
                 if subs_r:
@@ -249,7 +265,7 @@ def run_football_app():
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
             
-            # 2. RESTORED: SIDE-BY-SIDE LISTS (MISSING PIECE!)
+            # SIDE-BY-SIDE LISTS
             red_html_t2 = ""; blue_html_t2 = ""
             for _, p in reds.iterrows(): red_html_t2 += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
             for _, p in blues.iterrows(): blue_html_t2 += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
@@ -262,7 +278,7 @@ def run_football_app():
             </div>
             """, unsafe_allow_html=True)
 
-            # 3. MATCH SIMULATION BUTTON
+            # MATCH SIMULATION
             st.write("---")
             if st.button("🔮 SIMULATE MATCH SCENARIO"):
                 with st.spinner("AI is analyzing player stats and generating simulation..."):
