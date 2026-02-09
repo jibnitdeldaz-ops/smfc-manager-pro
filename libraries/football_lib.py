@@ -128,8 +128,8 @@ def run_football_app():
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
-
-        with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
+## START JIBIN
+with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
                 c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2.5])
@@ -142,12 +142,26 @@ def run_football_app():
                     if st.button("UPDATE POS", key="btn_update_pos"):
                         p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
+                        
+                        # ✅ RESTORED: Capture old position for the log
+                        old_pos = st.session_state.master_db.at[idx, 'Position']
+                        
+                        # Update DB
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
                         st.session_state.master_db.at[idx, 'Selected'] = True 
                         st.session_state.ui_version += 1
+                        
+                        # ✅ RESTORED: Append to log
+                        st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
+                
+                # ✅ RESTORED: Display the logs in Neon Green
+                if st.session_state.position_changes:
+                    st.write("")
+                    for change in st.session_state.position_changes: 
+                        st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
-
+## END JIBIN
         st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
