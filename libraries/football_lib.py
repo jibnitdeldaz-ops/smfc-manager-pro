@@ -1,4 +1,3 @@
-# libraries/football_lib.py
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
@@ -9,8 +8,6 @@ from mplsoccer import Pitch
 import matplotlib.pyplot as plt
 
 # --- IMPORTS FROM MODULES ---
-# Note: In Streamlit, if you run 'streamlit run app.py' (from root), imports should be relative to root.
-# Assuming 'libraries' is a package.
 try:
     from libraries.styles import apply_custom_css
     from libraries.backend import (
@@ -20,7 +17,7 @@ try:
     )
     from libraries.ai_scout import ask_ai_scout
 except ImportError:
-    # Fallback for direct execution or path issues
+    # Fallback for direct execution
     from styles import apply_custom_css
     from backend import (
         load_data, get_counts, get_guests_list, extract_whatsapp_players, 
@@ -30,14 +27,8 @@ except ImportError:
     from ai_scout import ask_ai_scout
 
 # --- MAIN APP ---
-### JIBIN ST 
-# libraries/football_lib.py (Partial Update - Parsing Logic)
-
-# ... imports ... (keep existing imports)
-
-# COPY THIS ENTIRE FUNCTION TO REPLACE THE OLD run_football_app
 def run_football_app():
-    # ... (Session state init code remains the same) ...
+    # Session State Init
     if 'ui_version' not in st.session_state: st.session_state.ui_version = 0
     if 'checklist_version' not in st.session_state: st.session_state.checklist_version = 0
     if 'parsed_match_data' not in st.session_state: st.session_state.parsed_match_data = None
@@ -47,31 +38,31 @@ def run_football_app():
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
 
+    # Apply CSS
     apply_custom_css()
 
+    # Load Data
     if 'master_db' not in st.session_state or (isinstance(st.session_state.master_db, pd.DataFrame) and st.session_state.master_db.empty):
         conn, df_p, df_m = load_data()
         st.session_state.conn = conn; st.session_state.master_db = df_p; st.session_state.match_db = df_m
     else:
         if 'conn' not in st.session_state: conn, df_p, df_m = load_data(); st.session_state.conn = conn
 
+    # Title & Refresh
     st.markdown("<h1 style='text-align:center; font-family:Rajdhani; font-size: 3.5rem; background: -webkit-linear-gradient(45deg, #D84315, #FF5722); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>SMFC MANAGER PRO</h1>", unsafe_allow_html=True)
     if st.sidebar.button("🔄 Refresh Data"): 
         st.session_state.pop('master_db', None)
         st.session_state.ui_version += 1
         st.rerun()
 
+    # Tabs
     tab1, tab2, tab3, tab4 = st.tabs(["MATCH LOBBY", "TACTICAL BOARD", "ANALYTICS", "DATABASE"])
 
-    # ... (TAB 1 & TAB 2 CODE REMAINS EXACTLY THE SAME - SKIPPED FOR BREVITY) ...
-    # ... (Copy the Tab 1 and Tab 2 code from the previous V13.0 response if needed) ...
-    
-    # --- TAB 1: LOBBY (Keep your existing code here) ---
+    # --- TAB 1: LOBBY ---
     with tab1:
         smfc_n, guest_n, total_n = get_counts()
         st.markdown(f"""<div class="section-box"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="color:#FF5722; font-weight:bold; font-size:20px; font-family:Rajdhani;">PLAYER POOL</div><div class="badge-box"><div class="badge-smfc">{smfc_n} SMFC</div><div class="badge-guest">{guest_n} GUEST</div><div class="badge-total">{total_n} TOTAL</div></div></div>""", unsafe_allow_html=True)
-        # ... (Insert rest of Tab 1 Logic) ...
-        # (For brevity, ensure you keep the Checklist and Squad Gen logic here)
+        
         with st.expander("📋 PASTE FROM WHATSAPP", expanded=True):
             whatsapp_text = st.text_area("List:", height=150, label_visibility="collapsed", placeholder="Paste list here...")
             if st.button("Select Players", key="btn_select"):
@@ -92,7 +83,7 @@ def run_football_app():
                         if g not in current: current.append(g)
                     st.session_state.guest_input_val = ", ".join(current)
                     st.session_state.ui_version += 1
-                    st.rerun()
+                    st.toast(f"✅ Found players. {len(new_guests)} guests added!"); st.rerun()
 
         # Checklists
         pos_tabs = st.tabs(["ALL", "FWD", "MID", "DEF"])
@@ -128,8 +119,8 @@ def run_football_app():
                 with c_pos: st.selectbox("Pos", ["FWD", "MID", "DEF", "GK"], key=f"g_pos_{g_name}", label_visibility="collapsed")
                 with c_lvl: st.selectbox("Lvl", ["⭐⭐⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐", "⭐⭐", "⭐"], index=2, key=f"g_lvl_{g_name}", label_visibility="collapsed")
             st.write("---")
-## START JIBIN
-with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
+
+        with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             selected_players = st.session_state.master_db[st.session_state.master_db['Selected'] == True]
             if not selected_players.empty:
                 c_p_sel, c_p_pos, c_p_btn = st.columns([3.5, 2, 2.5])
@@ -143,25 +134,25 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
                         p_name_clean = p_to_edit_str.rsplit(" (", 1)[0]
                         idx = st.session_state.master_db[st.session_state.master_db['Name'] == p_name_clean].index[0]
                         
-                        # ✅ RESTORED: Capture old position for the log
+                        # Capture old for log
                         old_pos = st.session_state.master_db.at[idx, 'Position']
                         
-                        # Update DB
+                        # Update
                         st.session_state.master_db.at[idx, 'Position'] = new_pos
                         st.session_state.master_db.at[idx, 'Selected'] = True 
                         st.session_state.ui_version += 1
                         
-                        # ✅ RESTORED: Append to log
+                        # Log
                         st.session_state.position_changes.append(f"{p_name_clean}: {old_pos} → {new_pos}")
                         st.rerun()
                 
-                # ✅ RESTORED: Display the logs in Neon Green
+                # Show Log
                 if st.session_state.position_changes:
                     st.write("")
-                    for change in st.session_state.position_changes: 
+                    for change in st.session_state.position_changes:
                         st.markdown(f"<div class='change-log-item'>{change}</div>", unsafe_allow_html=True)
             else: st.info("Select players first.")
-## END JIBIN
+
         st.write(""); 
         if st.button("⚡ GENERATE SQUAD"):
             if 'Selected' in st.session_state.master_db.columns:
@@ -178,7 +169,7 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
                 if not active.empty:
                     active['Power'] = active.apply(calculate_player_score, axis=1)
                     active = active.sort_values(['Position', 'Power'], ascending=[True, False])
-                    # Simplified logic for draft (same effect, less code)
+                    # Simplified draft
                     df_red = active.iloc[::2].copy(); df_red['Team'] = 'Red'
                     df_blue = active.iloc[1::2].copy(); df_blue['Team'] = 'Blue'
                     st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
@@ -219,6 +210,7 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
             with col_tr_red: s_red_str = st.selectbox("Select Red", red_opts, key="sel_red", label_visibility="collapsed")
             with col_tr_blue: s_blue_str = st.selectbox("Select Blue", blue_opts, key="sel_blue", label_visibility="collapsed")
             with col_btn:
+                # Aligned button (removed spacers)
                 if st.button("↔️", key="swap_btn"):
                     s_red = s_red_str.rsplit(" (", 1)[0]; s_blue = s_blue_str.rsplit(" (", 1)[0]
                     idx_r = st.session_state.match_squad[st.session_state.match_squad["Name"] == s_red].index[0]
@@ -234,7 +226,7 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
                 for log in st.session_state.transfer_log: st.markdown(f"<div class='change-log-item'>{log}</div>", unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- TAB 2: PITCH (Keep your existing code here) ---
+    # --- TAB 2: PITCH ---
     with tab2:
         if not st.session_state.match_squad.empty:
             c_pitch, c_subs = st.columns([3, 1])
@@ -282,14 +274,14 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
 
         else: st.info("Generate Squad First")
 
-    # --- TAB 3: ANALYTICS (THIS IS THE UPDATED PART FOR CHAT & MOBILE) ---
+    # --- TAB 3: ANALYTICS ---
     with tab3:
         if 'match_db' in st.session_state and not st.session_state.match_db.empty:
             df_m = st.session_state.match_db
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
-            # CHAT SECTION
+            # --- 🤖 KAARTHUMBI COMEDY CHAT (WHATSAPP STYLE) ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
             col_avatar, col_title = st.columns([1, 5])
             with col_avatar:
@@ -305,7 +297,7 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
                     ans = ask_ai_scout(user_q, lb, df_m)
                     st.session_state.ai_chat_response = ans
             
-            # --- NEW ROBUST CHAT RENDERER ---
+            # PARSE AND RENDER BUBBLES
             if st.session_state.ai_chat_response:
                 st.markdown("<div class='chat-container'>", unsafe_allow_html=True)
                 lines = st.session_state.ai_chat_response.split('\n')
@@ -313,73 +305,68 @@ with st.expander("🛠️ EDIT POSITIONS (Session Only)", expanded=False):
                     line = line.strip()
                     if not line: continue
                     
-                    # 1. SPLIT BY COLON TO ISOLATE SPEAKER
-                    parts = line.split(':', 1)
-                    if len(parts) < 2: continue # Skip if no colon found
+                    # 🔍 PARSING LOGIC: Handles bolding/casing variations
+                    line_lower = line.lower().replace('*', '').replace(':', '') 
                     
-                    raw_name = parts[0].lower().replace('*', '').strip()
-                    msg = parts[1].strip()
+                    char_class = "char-host"
+                    avatar = "🐘"
+                    name = "Kaarthumbi"
+                    msg = line
                     
-                    char_class = "guest-style"
-                    avatar = "👤"
-                    name = parts[0].replace('*', '').strip().upper()
+                    # Clean message by removing the name prefix
+                    if "kaarthumbi" in line_lower:
+                        char_class, avatar, name = "char-kaarthumbi", "🐘", "KAARTHUMBI"
+                        msg = re.split(r'kaarthumbi\s*[:*]+', line, flags=re.IGNORECASE)[-1]
+                    elif "bellary" in line_lower:
+                        char_class, avatar, name = "char-bellary", "😎", "BELLARY RAJA"
+                        char_class += " guest-style"
+                        msg = re.split(r'bellary\s*(?:raja)?\s*[:*]+', line, flags=re.IGNORECASE)[-1]
+                    elif "induchoodan" in line_lower:
+                        char_class, avatar, name = "char-induchoodan", "🔥", "INDUCHOODAN"
+                        char_class += " guest-style"
+                        msg = re.split(r'induchoodan\s*[:*]+', line, flags=re.IGNORECASE)[-1]
+                    elif "appukuttan" in line_lower:
+                        char_class, avatar, name = "char-appukuttan", "🥋", "APPUKUTTAN"
+                        char_class += " guest-style"
+                        msg = re.split(r'appukuttan\s*[:*]+', line, flags=re.IGNORECASE)[-1]
+                    elif "ponjikkara" in line_lower:
+                        char_class, avatar, name = "char-ponjikkara", "🤪", "PONJIKKARA"
+                        char_class += " guest-style"
+                        msg = re.split(r'ponjikkara\s*[:*]+', line, flags=re.IGNORECASE)[-1]
                     
-                    # 2. STRICT NAME CHECKING (Prevents Appukuttan becoming Bellary)
-                    if "kaarthumbi" in raw_name:
-                        char_class = "char-kaarthumbi" # Host is Left aligned
-                        avatar = "🐘"
-                    elif "bellary" in raw_name:
-                        char_class = "char-bellary guest-style"
-                        avatar = "😎"
-                    elif "induchoodan" in raw_name:
-                        char_class = "char-induchoodan guest-style"
-                        avatar = "🔥"
-                    elif "appukuttan" in raw_name:
-                        char_class = "char-appukuttan guest-style"
-                        avatar = "🥋"
-                    elif "ponjikkara" in raw_name:
-                        char_class = "char-ponjikkara guest-style"
-                        avatar = "🤪"
-                    
-                    st.markdown(f"""
-                    <div class="chat-row {char_class}">
-                        <div class="chat-avatar">{avatar}</div>
-                        <div class="chat-bubble">
-                            <div class="chat-name">{name}</div>
-                            {msg}
+                    if msg.strip():
+                        st.markdown(f"""
+                        <div class="chat-row {char_class}">
+                            <div class="chat-avatar">{avatar}</div>
+                            <div class="chat-bubble">
+                                <div class="chat-name">{name}</div>
+                                {msg.strip()}
+                            </div>
                         </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
             
             st.write("---")
-            
-            # METRICS (Responsive)
+            # (Rest of Tab 3 - Metrics & Leaderboard)
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
-            
             lb = calculate_leaderboard(df_m, official_names)
             
-            # LEADERBOARD CARDS (Stacked for Mobile via CSS)
             if not lb.empty:
                 max_m = lb['M'].max(); names_m = ", ".join(lb[lb['M'] == max_m].index.tolist())
                 top_player = lb.iloc[0]; val_w = f"{top_player['Win %']}%"; name_w = lb.index[0]
                 max_l = lb['L'].max(); names_l = ", ".join(lb[lb['L'] == max_l].index.tolist())
-                
-                # Spotlight Cards
                 sp1, sp2, sp3 = st.columns(3)
-                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
-                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
-                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
+                with sp1: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #00C9FF;'><div class='sp-value'>{max_m}</div><div class='sp-title'>COMMITMENT KING</div><div class='sp-name'>{names_m}</div></div>", unsafe_allow_html=True)
+                with sp2: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #FFD700;'><div class='sp-value'>{val_w}</div><div class='sp-title'>STAR PLAYER</div><div class='sp-name'>{name_w}</div></div>", unsafe_allow_html=True)
+                with sp3: st.markdown(f"<div class='spotlight-box' style='border-bottom:4px solid #ff4b4b;'><div class='sp-value'>{max_l}</div><div class='sp-title'>MOST LOSSES</div><div class='sp-name'>{names_l}</div></div>", unsafe_allow_html=True)
                 
                 st.write("---")
-                # Main List
                 for p, r in lb.iterrows(): 
                     st.markdown(f"""<div class='lb-card'><div class='lb-rank'>#{r['Rank']}</div><div class='lb-info'><div class='lb-name'>{p}</div><div class='lb-stats'>{r['M']} Matches • {r['W']} Wins</div></div><div class='lb-form'>{r['Form_Icons']}</div><div class='lb-winrate'>{r['Win %']}%</div></div>""", unsafe_allow_html=True)
             
             st.write("---")
-            # RECENT MATCHES
             st.markdown("<h4 class='neon-white'>RECENT MATCHES</h4>", unsafe_allow_html=True)
             history = df_m.sort_values('Date', ascending=False).head(10)
             for _, row in history.iterrows():
