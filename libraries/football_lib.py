@@ -221,16 +221,14 @@ def run_football_app():
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
                 fig, ax = pitch.draw(figsize=(10, 12)) 
                 
-                # 2. HEADER (REFINED)
+                # 2. HEADER
                 dt_obj = datetime.combine(match_date, match_time)
                 date_str = dt_obj.strftime('%d %b %Y')
                 day_venue_str = f"({dt_obj.strftime('%a')} at {venue})"
                 time_str = dt_obj.strftime('%I:%M %p')
                 full_subtitle = f"{date_str} {day_venue_str} | {time_str}"
 
-                # ✅ Main Header: Theme Orange, Bigger Size (26)
                 ax.text(50, 108, "SMFC MATCH DAY", color='#FF5722', ha='center', fontsize=26, fontweight='900', fontfamily='sans-serif', path_effects=[path_effects.withStroke(linewidth=3, foreground='black')])
-                # ✅ Subtitle: Black text, Bigger Size (16), White Outline for contrast
                 ax.text(50, 103, full_subtitle, color='black', ha='center', fontsize=16, fontweight='bold', path_effects=[path_effects.withStroke(linewidth=2, foreground='white')])
                 
                 # 3. PLAYERS ON PITCH
@@ -283,10 +281,10 @@ def run_football_app():
                 with c_dl:
                     st.download_button(label="📸 DOWNLOAD IMAGE", data=img_buf, file_name=fn, mime="image/png", use_container_width=True)
                 with c_copy:
-                    # Unique ID for Tab 2 copy button to avoid conflict with Tab 1
+                    # Unique ID for Tab 2 copy button
                     unique_id = "txt_copy_tab2"
                     # Inline style added to the button to match theme
-                    components.html(f"""<textarea id="{unique_id}" style="position:absolute; left:-9999px;">{summary_tab2}</textarea><button onclick="var c=document.getElementById('{unique_id}');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:0; border:none; border-radius:5px; width:100%; height: 55px; cursor:pointer; font-size:16px;">📋 COPY TEXT</button>""", height=55)
+                    components.html(f"""<textarea id="{unique_id}" style="position:absolute; left:-9999px;">{summary_tab2}</textarea><button onclick="var c=document.getElementById('{unique_id}');c.select();document.execCommand('copy');this.innerText='✅ COPIED!';" style="background:linear-gradient(90deg, #FF5722, #FF8A65); color:white; font-weight:800; padding:0; border:none; border-radius:8px; width:100%; height: 55px; cursor:pointer; font-size:16px;">📋 COPY TEAM LIST</button>""", height=55)
 
             with c_subs:
                 st.markdown("<h4 style='color:#FF5722; text-align:center;'>SUBSTITUTES</h4>", unsafe_allow_html=True)
