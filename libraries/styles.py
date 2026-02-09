@@ -5,8 +5,54 @@ def apply_custom_css():
     st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700;900&family=Courier+Prime:wght@700&display=swap');
-        .stApp { background-color: #0e1117; font-family: 'Rajdhani', sans-serif; background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); color: #e0e0e0; }
         
+        /* APP BACKGROUND */
+        .stApp { 
+            background-color: #0e1117; 
+            font-family: 'Rajdhani', sans-serif; 
+            background-image: radial-gradient(circle at 50% 0%, #1c2026 0%, #0e1117 70%); 
+            color: #e0e0e0; 
+        }
+        
+        /* --- 🌟 NEON TEXT RESTORATION (THE FIX) --- */
+        
+        /* 1. Global Widget Labels (Checkboxes, Inputs, Selectboxes) */
+        .stCheckbox p, div[data-testid="stWidgetLabel"] p, label p {
+            color: #ffffff !important;
+            text-shadow: 0 0 8px rgba(255,255,255,0.9) !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            font-size: 15px !important;
+            letter-spacing: 1px !important;
+        }
+
+        /* 2. Input Fields Text Color */
+        input[type="text"], input[type="number"], textarea, div[data-baseweb="input"], div[data-baseweb="base-input"] { 
+            background-color: #ffffff !important; 
+            color: #000000 !important; 
+            border-radius: 5px !important; 
+            font-weight: bold !important;
+        }
+        div[data-baseweb="select"] div { 
+            background-color: #ffffff !important; 
+            color: #000000 !important; 
+        }
+
+        /* 3. Metrics (Big Numbers) */
+        [data-testid="stMetricLabel"] { 
+            color: #ffffff !important; 
+            font-weight: bold !important; 
+            text-shadow: 0 0 5px rgba(255,255,255,0.5); 
+        }
+        [data-testid="stMetricValue"] { 
+            color: #ffffff !important; 
+            font-weight: 900 !important; 
+            text-shadow: 0 0 15px rgba(255,255,255,0.8); 
+            font-family: 'Orbitron', sans-serif;
+        }
+
+        /* --- END NEON FIX --- */
+
         .neon-white { color: #ffffff; text-shadow: 0 0 5px #ffffff, 0 0 10px #ffffff; font-weight: 800; text-transform: uppercase; }
         .neon-red { color: #ff4b4b; text-shadow: 0 0 5px #ff4b4b, 0 0 10px #ff4b4b; font-weight: 800; text-transform: uppercase; }
         .neon-blue { color: #1c83e1; text-shadow: 0 0 5px #1c83e1, 0 0 10px #1c83e1; font-weight: 800; text-transform: uppercase; }
@@ -15,14 +61,12 @@ def apply_custom_css():
         .dull-grey { color: #888; font-weight: 600; font-size: 12px; opacity: 0.8; }
         .draw-text { color: #ccc; font-weight: 700; font-size: 13px; }
 
-        input, div[data-baseweb="input"] { background-color: #ffffff !important; color: #000 !important; border-radius: 5px; }
-        div[data-baseweb="base-input"] input { color: #000000 !important; font-weight: bold; }
-        div[data-baseweb="select"] div { background-color: #ffffff !important; color: #000000 !important; }
+        .badge-box { display: flex; gap: 5px; }
+        .badge-smfc, .badge-guest { background:#111; padding:5px 10px; border-radius:6px; border:1px solid #444; color:white; font-weight:bold; }
+        .badge-total { background:linear-gradient(45deg, #FF5722, #FF8A65); padding:5px 10px; border-radius:6px; color:white; font-weight:bold; box-shadow: 0 0 10px rgba(255,87,34,0.4); }
         
         /* CHAT STYLES */
         .chat-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 20px; padding: 10px; }
-        
-        /* Added margin-bottom to create space between bubbles */
         .chat-row { display: flex; align-items: flex-start; gap: 10px; width: 100%; margin-bottom: 15px; }
         
         /* HOST (LEFT) */
@@ -50,7 +94,6 @@ def apply_custom_css():
         .char-ponjikkara .chat-avatar { background: #607D8B; }
         .char-ponjikkara .chat-bubble { background: linear-gradient(135deg, #546E7A, #455A64); font-style: italic; }
         
-        /* ANALYTICS CARD STYLES */
         .lb-card { background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%); border: 1px solid rgba(255,255,255,0.1); border-left: 4px solid #FF5722; border-radius: 10px; padding: 15px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
         .lb-rank { font-size: 24px; font-weight: 900; color: #FF5722; width: 40px; }
         .lb-info { flex-grow: 1; padding-left: 10px; }
@@ -64,6 +107,15 @@ def apply_custom_css():
         .sp-title { font-size: 14px; font-weight: 900; color: #ffffff; text-transform: uppercase; margin-bottom: 10px; }
         .sp-name { color: #ffffff; font-size: 18px; font-weight: 900; text-transform: uppercase; }
         
+        .match-card { background: rgba(18, 18, 18, 0.9); border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .mc-left { flex: 1; padding-right: 15px; display: flex; flex-direction: column; justify-content: center; min-width: 140px; }
+        .mc-right { flex: 2; padding-left: 20px; border-left: 1px solid rgba(255,255,255,0.15); display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+        .mc-date { font-size: 11px; color: #888; font-weight: 800; margin-bottom: 6px; text-transform: uppercase; }
+        .mc-score { font-size: 24px; font-family: 'Orbitron', sans-serif; letter-spacing: 1px; color: white; font-weight: 900; }
+        .mc-score-blue { color: #1c83e1; text-shadow: 0 0 10px rgba(28, 131, 225, 0.4); }
+        .mc-score-red { color: #ff4b4b; text-shadow: 0 0 10px rgba(255, 75, 75, 0.4); }
+        .mc-score-draw { color: #fff; opacity: 0.8; }
+
         /* MOBILE OPTIMIZATION */
         @media (max-width: 600px) {
             .stApp { background-image: none; background-color: #0e1117; } /* Solid dark bg for mobile performance */
