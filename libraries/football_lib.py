@@ -15,7 +15,6 @@ try:
         clean_player_name, toggle_selection, calculate_player_score, 
         calculate_leaderboard, parse_match_log, formation_presets
     )
-    # ✅ NEW IMPORT added here
     from libraries.ai_scout import ask_ai_scout, simulate_match_commentary
 except ImportError:
     from styles import apply_custom_css
@@ -36,7 +35,6 @@ def run_football_app():
     if 'match_squad' not in st.session_state: st.session_state.match_squad = pd.DataFrame()
     if 'guest_input_val' not in st.session_state: st.session_state.guest_input_val = ""
     if 'ai_chat_response' not in st.session_state: st.session_state.ai_chat_response = ""
-    # ✅ New Session State for Simulation
     if 'match_simulation' not in st.session_state: st.session_state.match_simulation = ""
 
     apply_custom_css()
@@ -160,7 +158,7 @@ def run_football_app():
                     st.session_state.match_squad = pd.concat([df_red, df_blue], ignore_index=True)
                     st.session_state.red_ovr = int(df_red['Power'].mean()) if not df_red.empty else 0
                     st.session_state.blue_ovr = int(df_blue['Power'].mean()) if not df_blue.empty else 0
-                    st.session_state.match_simulation = "" # Reset simulation on new squad
+                    st.session_state.match_simulation = "" 
                     st.rerun()
             else: st.error("Database offline.")
 
@@ -215,7 +213,7 @@ def run_football_app():
     # --- TAB 2: PITCH ---
     with tab2:
         if not st.session_state.match_squad.empty:
-            # 1. PITCH VISUALIZATION
+            # 1. PITCH
             c_pitch, c_subs = st.columns([3, 1])
             with c_pitch:
                 pitch = Pitch(pitch_type='custom', pitch_length=100, pitch_width=100, pitch_color='#43a047', line_color='white')
@@ -227,9 +225,10 @@ def run_football_app():
                 coords_map = formation_presets.get(fmt, formation_presets['9 vs 9'])
                 r_spots = coords_map.get("RED_COORDS", []); b_spots = coords_map.get("BLUE_COORDS", [])
                 
-                # Draw players (re-calculate reds/blues here for scope)
+                # Recalculate for tab2 scope
                 reds = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Red"].sort_values('Pos_Ord')
                 blues = st.session_state.match_squad[st.session_state.match_squad["Team"] == "Blue"].sort_values('Pos_Ord')
+                r_ovr = st.session_state.get('red_ovr', 0); b_ovr = st.session_state.get('blue_ovr', 0)
                 
                 subs_r = []
                 for i, row in enumerate(reds.itertuples()):
@@ -250,14 +249,25 @@ def run_football_app():
                     st.markdown("<div style='color:#1c83e1; font-weight:bold; margin-top:10px;'>🔵 BLUE SUBS</div>", unsafe_allow_html=True)
                     for s in subs_b: st.markdown(f"- {s}")
             
-            # 2. MATCH SIMULATION BUTTON (New Feature)
+            # 2. RESTORED: SIDE-BY-SIDE LISTS (MISSING PIECE!)
+            red_html_t2 = ""; blue_html_t2 = ""
+            for _, p in reds.iterrows(): red_html_t2 += f"<div class='player-card kit-red' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
+            for _, p in blues.iterrows(): blue_html_t2 += f"<div class='player-card kit-blue' style='padding: 4px 8px;'><span class='card-name' style='font-size:12px;'>{p['Name']}</span></div>"
+            
+            st.write("---")
+            st.markdown(f"""
+            <div style="display: flex; gap: 5px; margin-top: 10px;">
+                <div style="flex: 1; min-width: 0;"><h6 style='color:#ff4b4b; text-align:center; margin:0 0 5px 0;'>RED ({r_ovr})</h6>{red_html_t2}</div>
+                <div style="flex: 1; min-width: 0;"><h6 style='color:#1c83e1; text-align:center; margin:0 0 5px 0;'>BLUE ({b_ovr})</h6>{blue_html_t2}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # 3. MATCH SIMULATION BUTTON
             st.write("---")
             if st.button("🔮 SIMULATE MATCH SCENARIO"):
                 with st.spinner("AI is analyzing player stats and generating simulation..."):
                     r_names = [p['Name'] for p in reds.to_dict('records')]
                     b_names = [p['Name'] for p in blues.to_dict('records')]
-                    r_ovr = st.session_state.get('red_ovr', 70)
-                    b_ovr = st.session_state.get('blue_ovr', 70)
                     st.session_state.match_simulation = simulate_match_commentary(r_names, b_names, r_ovr, b_ovr)
             
             if st.session_state.match_simulation:
@@ -279,7 +289,6 @@ def run_football_app():
             official_names = set(st.session_state.master_db['Name'].unique()) if 'Name' in st.session_state.master_db.columns else set()
             total_goals = pd.to_numeric(df_m['Score_Blue'], errors='coerce').sum() + pd.to_numeric(df_m['Score_Red'], errors='coerce').sum()
             
-            # --- CHAT UI ---
             st.markdown("<div class='ai-box'>", unsafe_allow_html=True)
             col_avatar, col_title = st.columns([1, 5])
             with col_avatar:
@@ -321,7 +330,6 @@ def run_football_app():
             st.markdown("</div>", unsafe_allow_html=True)
             
             st.write("---")
-            # METRICS
             c1, c2, c3 = st.columns(3)
             c1.metric("MATCHES", len(df_m)); c2.metric("GOALS", int(total_goals)); c3.metric("PLAYERS", len(official_names))
             lb = calculate_leaderboard(df_m, official_names)
